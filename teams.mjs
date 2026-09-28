@@ -7,6 +7,8 @@
 //   · canonicalise the few names the feeds disagree on (Inter / Internazionale, Man Utd, PSG …)
 //   · match when every distinctive token of the shorter name appears in the longer one
 //   · an abbreviation matches only by EXACT equality against a feed's own abbreviation field
+import { pathToFileURL } from "node:url";
+
 const FULL_ALIAS = {
   "psg": "paris saint germain", "paris sg": "paris saint germain",
   "man city": "manchester city", "man utd": "manchester united", "man united": "manchester united",
@@ -64,4 +66,44 @@ export const isNation = (name) => NATIONS.has(key(tokens(name)));
 export function splitFixtureName(s) {
   const m = String(s || "").split(/\s+(?:v|vs|vs\.|@|-|–|—)\s+/i);
   return m.length === 2 ? m : null;
+}
+
+// ── cross-feed audit (checked live 2026-09-28): every UEFA nation as ESPN spells it, then each other
+// spelling a feed was seen using. ESPN displayName / shortDisplayName, FotMob, FanDuel, OddsPapi
+// name / shortName; plus The Odds API's and Action Network's older forms. Russia is suspended but
+// stays so a stray "Russia U21" can't slip through. Add a row whenever a feed shows a new spelling.
+export const NATION_SPELLINGS = [
+  ["Albania"], ["Andorra"], ["Armenia"], ["Austria"], ["Azerbaijan"], ["Belarus"], ["Belgium"],
+  ["Bosnia-Herzegovina", "Bosnia-Herz", "Bosnia and Herzegovina", "Bosnia & Herzegovina", "Bosnia"],
+  ["Bulgaria"], ["Croatia"], ["Cyprus"], ["Czechia", "Czech Republic"], ["Denmark"], ["England"], ["Estonia"],
+  ["Faroe Islands", "Faroes"], ["Finland"], ["France"], ["Georgia"], ["Germany"], ["Gibraltar"], ["Greece"],
+  ["Hungary"], ["Iceland"], ["Israel"], ["Italy"], ["Kazakhstan"], ["Kosovo"], ["Latvia"], ["Liechtenstein"],
+  ["Lithuania"], ["Luxembourg"], ["Malta"], ["Moldova"], ["Montenegro"], ["Netherlands", "Holland"],
+  ["North Macedonia", "Macedonia", "FYR Macedonia"], ["Northern Ireland", "N Ireland", "N. Ireland"],
+  ["Norway"], ["Poland"], ["Portugal"],
+  ["Republic of Ireland", "Rep Ireland", "Ireland", "Rep. of Ireland", "Ireland Republic"],
+  ["Romania"], ["Russia"], ["San Marino"], ["Scotland"], ["Serbia"], ["Slovakia"], ["Slovenia"], ["Spain"],
+  ["Sweden"], ["Switzerland"], ["Türkiye", "Turkiye", "Turkey"], ["Ukraine"], ["Wales"],
+];
+// names that must match NO nation: the mixed boards' youth, women's and club sides
+const NOT_NATIONS = ["Austria Wien", "Spain U21", "England Women", "Wales U21", "Georgia Southern", "Malta U19", "Slovan Bratislava", "Roma"];
+// returns a list of problems (empty = clean). Each spelling must match its own country and no other
+// — the second is how LaLiga's "Real" and "Deportivo" bugs would have been caught.
+export function auditNations() {
+  const bad = [];
+  NATION_SPELLINGS.forEach(([canon, ...alts], i) => {
+    if (!isNation(canon)) bad.push(`${canon}: not in NATIONS`);
+    for (const s of [canon, ...alts]) {
+      if (!teamMatch(s, canon)) bad.push(`${s}: doesn't match ${canon}`);
+      NATION_SPELLINGS.forEach(([other], j) => { if (j !== i && teamMatch(s, other)) bad.push(`${s}: also matches ${other}`); });
+    }
+  });
+  for (const s of NOT_NATIONS) for (const [canon] of NATION_SPELLINGS) if (teamMatch(s, canon)) bad.push(`${s}: matches ${canon}`);
+  return bad;
+}
+// `node teams.mjs` runs the audit
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const bad = auditNations();
+  console.log(bad.length ? bad.join("\n") : `teams.mjs: ${NATION_SPELLINGS.flat().length} spellings of ${NATION_SPELLINGS.length} nations, all clean`);
+  process.exitCode = bad.length ? 1 : 0;
 }

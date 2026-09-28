@@ -90,6 +90,11 @@ ESPN's `MUN` (Bayern Munich) matched Dort-**mun**-d and `MAN` (Manchester United
 **Man**chester City, and the wrong players, form and prices flowed into those games for a
 day. Never reintroduce a substring test on names.
 
+National teams are stricter still: a UEFA country matches only the same country, never by
+subset ("Austria Wien", "Spain U21" and "England Women" match nothing). `NATION_SPELLINGS`
+holds every spelling the feeds were seen using for each of the 55 nations, and `node teams.mjs`
+checks each one matches its own country and no other — add a row when a feed shows a new one.
+
 ### Feed modules — one per source, all best-effort
 `espn` lives in `lib.mjs` (it's the backbone); the rest are separate:
 
@@ -189,7 +194,7 @@ scheduled task runs at 10:00: build the card, record it, settle yesterday, write
 
 `renderer.js` keeps one `last` payload and redraws from scratch on every push. `render()`
 dispatches on `route`, parsed from the URL hash: `today` (`#/today[/day]`), `league`
-(`#/league/<code>[/table|fixtures|builder]`), `match` (`#/match/<id>`) and `bets`
+(`#/league/<code>[/table[/<tier>]|fixtures|builder]` — the tier is the Nations League's A–D tab), `match` (`#/match/<id>`) and `bets`
 (`#/bets[/record[/<code>]]`). `go(route)` pushes a history entry (or replaces it — sub-tabs,
 days, filters, the league switch); `popstate` re-applies, and `history.state.d` counts depth
 so ◀ knows when there's nowhere back to go. League pages fetch per league code through `wc`

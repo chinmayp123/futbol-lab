@@ -482,7 +482,7 @@ td.lead { color: var(--text); }
 .compact .cut { padding-left: 30px; font-size: 8px; }
 .grp-name { margin: 14px 0 6px; }
 .grp-name:first-of-type { margin-top: 0; }
-.grp-tier { font-size: 20px; margin: 26px 0 10px; } .stand .grp-tier:nth-child(2) { margin-top: 8px; }
+.stand .tier-tabs { margin: 2px 0 10px; }   /* Nations League A–D, over the chosen tier's groups */
 
 /* ── bracket (knockout) ───────────────────────────────────────────────────── */
 .brk-path { font: 500 10.5px/1.5 var(--mono); margin: -2px 0 10px; color: color-mix(in srgb, var(--gold) 40%, var(--dim)); }

@@ -150,7 +150,8 @@ const DAY_RX = /^\d{4}-\d\d-\d\d$/;
 function parseHash() {
   const p = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
   const codes = comps().map((c) => c.code);
-  if (p[0] === "league" && codes.includes(p[1])) return { page: "league", code: p[1], sub: SUBS.includes(p[2]) ? p[2] : "overview" };
+  // a tiered table's tier is a fourth segment (#/league/unl/table/B); the payload decides which exist
+  if (p[0] === "league" && codes.includes(p[1])) return { page: "league", code: p[1], sub: SUBS.includes(p[2]) ? p[2] : "overview", tier: p[2] === "table" && /^[A-Z]$/.test(p[3] || "") ? p[3] : null };
   if (p[0] === "match" && p[1]) return { page: "match", id: p[1] };
   if (p[0] === "bets") return { page: "bets", sub: p[1] === "record" ? "record" : "card", code: p[1] === "record" && codes.includes(p[2]) ? p[2] : null };
   if (p[0] === "today") return { page: "today", day: DAY_RX.test(p[1] || "") ? p[1] : null };
@@ -160,7 +161,7 @@ function parseHash() {
   return { page: "today", day: null };
 }
 function hashOf(r) {
-  if (r.page === "league") return `#/league/${r.code}${r.sub && r.sub !== "overview" ? `/${r.sub}` : ""}`;
+  if (r.page === "league") return `#/league/${r.code}${r.sub && r.sub !== "overview" ? `/${r.sub}` : ""}${r.sub === "table" && r.tier ? `/${r.tier}` : ""}`;
   if (r.page === "match") return `#/match/${encodeURIComponent(r.id)}`;
   if (r.page === "bets") return `#/bets${r.sub === "record" ? `/record${r.code ? `/${r.code}` : ""}` : ""}`;
   return r.day ? `#/today/${r.day}` : "#/today";
@@ -2034,11 +2035,21 @@ function renderStandings(data, code) {
     ]);
     return r;
   };
-  let lastTier = null;
-  for (const g of data.groups) {
-    // tiers (Nations League A–D) get a heading over their groups
-    if (g.tier && g.tier !== lastTier) { wrap.appendChild(h("div", { class: "vh grp-tier", text: `League ${g.tier}` })); lastTier = g.tier; }
-    if (data.groups.length > 1) wrap.appendChild(h("div", { class: "eyebrow grp-name", text: g.name }));
+  // tiers (Nations League A–D) each get a tab, and only the chosen tier's groups are drawn — four
+  // leagues of stacked tables was a long scroll to reach League C. The tiers, their zones and their
+  // words all come from the payload (competition.mjs leagues), never from here.
+  const tiers = [...new Set(data.groups.map((g) => g.tier).filter(Boolean))];
+  let groups = data.groups;
+  if (tiers.length > 1) {
+    // the tier is in the address (#/league/unl/table/B) so a tab can be linked and ◀ doesn't lose it
+    const on = tiers.includes(route.tier) ? route.tier : tiers[0];
+    wrap.appendChild(h("div", { class: "chips tier-tabs" }, tiers.map((t) => h("button", {
+      class: `lchip${t === on ? " on" : ""}`, text: `League ${t}`, onclick: () => go({ ...route, tier: t }, { replace: true }),
+    }))));
+    groups = data.groups.filter((g) => g.tier === on);
+  }
+  for (const g of groups) {
+    if (groups.length > 1) wrap.appendChild(h("div", { class: "eyebrow grp-name", text: g.name }));
     const tbl = h("div", { class: "tbl" }, [headRow()]);
     const CUT = g.cuts || comp.cuts;
     let lastZone = null;
