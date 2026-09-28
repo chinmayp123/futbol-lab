@@ -5,8 +5,8 @@ wrapped so a failure returns `null` and the caller degrades — see the best-eff
 [AGENTS.md](AGENTS.md).
 
 Competition-specific ids for each feed live in `competition.mjs`, one entry per competition
-(Premier League, LaLiga, Champions League; the World Cup kept), so adding one is a config change
-plus a publisher pass and a live function on the website.
+(Premier League, LaLiga, Champions League, Nations League; the World Cup kept), so adding one is a
+config change plus a publisher pass and a live function on the website.
 
 ---
 
@@ -23,6 +23,11 @@ player xG and no shot-level data.
 (`dates=YYYYMMDD-YYYYMMDD&limit=300`), so the slate, the picker and search all share a
 single fetch. Refresh is every 30 s while a game is live.
 
+**On 2026-09-28 ESPN began answering every ranged query with a 400** — every league, past
+spans included — while whole months (`dates=YYYYMM&limit=300`) still worked. `scoreboardRange()`
+now falls back to the months a span covers (trimmed to the span) and skips the ranged call for
+an hour after a failure. If ranges come back, it uses them again on its own.
+
 ### FotMob — xG, lineups, form (`fotmob.mjs`, no key)
 FotMob's `/api/*` endpoints are gated behind a rotating signed `x-mas` header, but its
 public pages embed the same server-rendered payload in `<script id="__NEXT_DATA__">`, which
@@ -38,6 +43,12 @@ The team page is what makes matchday one work: `recentMatches()` takes a club's 
 competitive games from wherever it last played (friendlies skipped), so form, corner and
 saves projections and scorer numbers exist before a competition has any history of its own.
 
+League ids: 42 Champions League, 47 Premier League, 87 LaLiga. The **Nations League is four
+FotMob leagues**, one per tier — 9806 `nations-league-a`, 9807 `-b`, 9808 `-c`, 9809 `-d`
+(48 + 48 + 48 + 12 = all 156 league-phase games, rounds 1–6) — so a competition entry may list
+`fotmob.leagues` and `fetchFotmobFixtures()` reads them all, dropping a dead tier rather than
+the lot.
+
 Unofficial and brittle if the pages restructure. Player headshots come from
 `images.fotmob.com/image_resources/playerimages/<id>.png` with an initials fallback.
 
@@ -49,6 +60,11 @@ stack. This is also the primary odds source when no Odds API key is set. Its und
 scoreboard lists only the games around "now" (4 of a Saturday's 37 in the small hours), so
 today's and tomorrow's dated boards (`&date=YYYYMMDD`, US Eastern days) are read as well.
 
+**It has no Nations League.** Checked 2026-09-27/28/29 and 2026-10-01 during the league phase:
+the boards carried MLS only. That matters more than it sounds — the card and the Builder take
+their FanDuel 1X2 from this feed, so a Nations League game never reaches the model and the card
+says so per game ("not priced … not bet") instead of going quiet.
+
 ### FanDuel public sportsbook API — corners, BTTS, player prices (`fanduel.mjs`, no key)
 The same JSON FanDuel's own site fetches, with a public app key. Provides **total match
 corners** over/under, **both teams to score**, and **anytime scorer / shots on target**
@@ -57,8 +73,8 @@ prices. Prices sit at `runners[].winRunnerOdds.americanDisplayOdds.americanOdds`
 
 League events come off the soccer SPORT page
 (`content-managed-page?page=SPORT&eventTypeId=1`) filtered by FanDuel's `competitionId` —
-228 Champions League, 10932509 Premier League, 117 LaLiga (141 MLS); there are no custom
-competition pages. Player markets post late: early on a matchday an event can carry only
+228 Champions League, 10932509 Premier League, 117 LaLiga, 11984200 UEFA Nations League (141
+MLS); there are no custom competition pages (`customPageId=uefa-nations-league` is a 404). Player markets post late: early on a matchday an event can carry only
 two markets, which reads as "no props", not as a matching failure. Optional config: `fanduelRegion` (your state
 subdomain, default `nj`) and `fanduelWorldCupPageId` (only for competitions that do have a
 custom page).
@@ -72,10 +88,13 @@ draw-no-bet, team totals and Asian handicaps across books, which is what lets th
 show a real "best price" and the card price markets FanDuel alone doesn't cover. Books to
 try are configurable (`oddspapiBooks`, default `fanduel,bet365`); responses are cached 30
 minutes to 12 hours because pre-match lines barely move. Tournament ids: 7 Champions
-League, 17 Premier League, 8 LaLiga (242 MLS). Every call is counted: the website's
-publisher caps each competition at its monthly `oddspapiBudget` (Champions League 60,
-Premier League 90, LaLiga 50 — 200 of the 250, the rest left for the other project),
-because each run is a fresh process whose caches start empty.
+League, 17 Premier League, 8 LaLiga, 23755 UEFA Nations League (`uefa-nations-league`, 156
+future fixtures listed on 2026-09-28; not 36219, the simulated "SRL" copy) (242 MLS). Every
+call is counted: the website's publisher caps each competition at its monthly
+`oddspapiBudget` (Champions League 60, Premier League 90, LaLiga 50, Nations League 20 — 220 of
+the 250, 30 left for the other project), because each run is a fresh process whose caches start
+empty. Note `/fixtures` ignores `tournamentIds` (it answered with every soccer fixture), so its
+names are only ever matched, never trusted to be the competition's.
 
 **Watch for stale lines.** A ±0.5 handicap from a line shop that beats FanDuel's moneyline
 on the same outcome is a stale price, not value — the card guards against exactly that.
@@ -87,6 +106,11 @@ shots-on-target props for the tracked game. Spend is deliberately small: the eve
 costs 2 credits and the tracked game's props 2, cached 30 minutes pre-match, 5 minutes in
 play, and never refetched once a game is final. An exhausted key is remembered for the rest
 of the process. The morning card never calls it.
+
+Sport keys: `soccer_uefa_champs_league`, `soccer_epl`, `soccer_spain_la_liga`,
+`soccer_uefa_nations_league` (active on 2026-09-28; its free events list had 26 games and no
+League D side — Malta, Andorra, Gibraltar, Lithuania, Azerbaijan and Liechtenstein get ESPN's
+line only).
 
 ---
 
@@ -101,6 +125,10 @@ of the process. The morning card never calls it.
   proved badly calibrated (36% hit against 60% claimed over n=11), so corners are benched
   from the card and shown for reading only.
 - **No expected lineups** before the confirmed XIs post, roughly an hour before kickoff.
+- **The Nations League has no card.** Action Network doesn't list it (see above), so there's no
+  FanDuel 1X2 for the model to be judged against. Match pages still show ESPN's line, FotMob's
+  form and FanDuel's corners/BTTS/props where posted; the Odds API and OddsPapi price it on the
+  keyed step, but neither feeds the card's 1X2.
 
 ---
 
@@ -118,6 +146,15 @@ wrong-club bugs, not misses: `sociedad` used to be a generic token, which left "
 Sociedad" as just "real" and matched it to Real Madrid, Real Betis and Racing Santander; and
 ESPN's bare "Deportivo" (La Coruña) matched "Deportivo Alavés" until it was aliased to
 `deportivo la coruna`.
+
+**National teams** (Nations League, 2026-09-28): all 54 ESPN sides against FotMob's four tiers,
+FanDuel, The Odds API's events and OddsPapi — no misses beyond League D's absence from The
+Odds API, and no feed name matching two sides. The fixes: FotMob's bare "Ireland" is the
+Republic and would otherwise also sit inside "Northern Ireland"; ESPN's short "N Ireland" and
+"Rep Ireland" lose a token to the 3-letter floor; "Turkey"/"Türkiye", "Czech Republic"/"Czechia"
+and FanDuel's "Bosnia" are aliased. And **a country name matches only that country, never by
+subset**: the mixed boards (FanDuel in-play, Action Network) carry "Austria Wien", "Spain U21",
+"England Women", and OddsPapi's fixture list carries "… SRL" simulated sides.
 
 This is not a nicety. The earlier per-module substring matchers put Dortmund's players on
 Bayern's page and City's on United's, because ESPN's `MUN` and `MAN` codes appear inside

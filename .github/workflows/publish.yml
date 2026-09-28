@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 14
     env:
       # keep in step with SITE_COMPETITIONS in competition.mjs
-      COMPETITIONS: "epl laliga ucl"
+      COMPETITIONS: "epl laliga ucl unl"
       FUTBOL_PUBLISHER_EMAIL: ${{ secrets.FUTBOL_PUBLISHER_EMAIL }}
       FUTBOL_PUBLISHER_PASSWORD: ${{ secrets.FUTBOL_PUBLISHER_PASSWORD }}
     steps:

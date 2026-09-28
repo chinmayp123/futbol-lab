@@ -482,6 +482,7 @@ td.lead { color: var(--text); }
 .compact .cut { padding-left: 30px; font-size: 8px; }
 .grp-name { margin: 14px 0 6px; }
 .grp-name:first-of-type { margin-top: 0; }
+.grp-tier { font-size: 20px; margin: 26px 0 10px; } .stand .grp-tier:nth-child(2) { margin-top: 8px; }
 
 /* ── bracket (knockout) ───────────────────────────────────────────────────── */
 .brk-path { font: 500 10.5px/1.5 var(--mono); margin: -2px 0 10px; color: color-mix(in srgb, var(--gold) 40%, var(--dim)); }
@@ -720,6 +721,7 @@ td.lead { color: var(--text); }
 /* ── league hubs ─────────────────────────────────────────────────────────────────────────────
    Each league has one colour (--lg), set by a c-<code> class on whatever carries it */
 .c-epl, .cal-lgs i.lg-pl { --lg: #b58cff; } .c-laliga, .cal-lgs i.lg-laliga { --lg: #ff9f45; } .c-ucl, .cal-lgs i.lg-ucl { --lg: var(--star); }
+.c-unl, .cal-lgs i.lg-unl { --lg: #36d6c8; }
 .lbadge { flex: none; display: inline-flex; align-items: center; justify-content: center; padding: 4px 6px; background: var(--lg, var(--sub)); color: var(--ink); font: 800 11px/1 var(--cd); letter-spacing: .6px; text-transform: uppercase; white-space: nowrap; }
 .lbadge.big { min-width: 46px; height: 46px; padding: 0 8px; font-size: 15px; }
 .matchday > .cal:first-child { margin-top: 0; }

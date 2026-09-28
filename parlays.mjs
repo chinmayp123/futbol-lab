@@ -378,10 +378,11 @@ export async function generateDailyParlays(stake = 10, events = null) {
   const cal = await import("./betlog.mjs")
     .then((b) => ({ goalsBias: b.goalsBias().factor, trust: b.edgeTrust().trust }))
     .catch(() => ({ goalsBias: 1, trust: 0.5 }));
-  const games = [];
+  const games = [], unpriced = [];
   for (const ev of upcoming) {
     const ml = await matchLegs(ev, cal.goalsBias, cal.trust).catch(() => null);
     if (ml && ml.candidates.length) games.push(ml);
+    else unpriced.push(ev);
   }
   // PRIMARY (tracked): up to two straight singles per game — the best in-band leg on each of the
   // result and goals axes (never a correlated pair), each staked on its own so a real edge can
@@ -406,6 +407,13 @@ export async function generateDailyParlays(stake = 10, events = null) {
     return { game: g.game, ok: false, text: e >= EDGE_MAX * 100 ? `best edge ${best.pick} ${e >= 0 ? "+" : ""}${e}% is over the ${Math.round(EDGE_MAX * 100)}% ceiling — too good to be true`
       : `best edge ${best.market === "Moneyline" ? "" : best.market + " "}${best.pick} ${e >= 0 ? "+" : ""}${e}% is under the ${Math.round(EDGE_MIN * 100)}% floor` };
   });
+  // games that never reached the model: no FanDuel 1X2 to judge it against. The prices come through
+  // Action Network, which doesn't list every competition (none of the Nations League, checked
+  // 2026-09-28) — without this line such a day's card was empty with no reason given
+  for (const ev of unpriced) {
+    const c = ev.competitions[0], ab = (side) => c.competitors.find((t) => t.homeAway === side)?.team.abbreviation;
+    notes.push({ game: `${ab("home")} v ${ab("away")}`, ok: false, text: "not priced: no FanDuel 1X2 on Action Network's board to judge the model against (or no model call) — not bet" });
+  }
   return { date: events ? bettingDay(events?.[0]?.date || Date.now()) : slate, stake, singles, longshot, notes };
 }
 

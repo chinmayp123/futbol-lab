@@ -405,7 +405,7 @@ const fact = (k, v, cls = "", onclick = null) => h("div", { class: `fact${onclic
 const SRC_LINE = "ESPN · FotMob xG · FanDuel · OddsPapi · Action Network";
 
 // ── render root ───────────────────────────────────────────────────────────────
-const ROUND_SHORT = { "knockout-round-playoffs": "PO", "round-of-32": "R32", "round-of-16": "R16", quarterfinals: "QF", semifinals: "SF", "third-place": "3RD", "3rd-place-match": "3RD", final: "FINAL" };
+const ROUND_SHORT = { "knockout-round-playoffs": "PO", "relegation-playoffs": "PO", "round-of-32": "R32", "round-of-16": "R16", quarterfinals: "QF", semifinals: "SF", "third-place": "3RD", "3rd-place-match": "3RD", final: "FINAL" };
 const roundShort = (slug) => ((last && last.comp && last.comp.koShort) || {})[slug] || ROUND_SHORT[slug];
 
 function render() {
@@ -601,7 +601,8 @@ function miniTable(std, code) {
   const es = group.entries;
   const league = (std.comp || compMeta(code)).format === "league";
   const rows = league && es.length > 10 ? [...es.slice(0, 5), null, ...es.slice(-3)] : es.slice(0, 8);
-  const tbl = h("div", { class: "tbl mini" }, [h("div", { class: "tr h" }, ["#", "", "Club", "P", "GD", "Pts"].map((t, i) => h("span", { class: i === 0 ? "rk" : "", text: t })))]);
+  const nations = (std.comp || compMeta(code)).nations;
+  const tbl = h("div", { class: "tbl mini" }, [std.groups.length > 1 ? h("div", { class: "cut", text: group.name }) : null, h("div", { class: "tr h" }, ["#", "", nations ? "Team" : "Club", "P", "GD", "Pts"].map((t, i) => h("span", { class: i === 0 ? "rk" : "", text: t })))]);
   for (const e of rows) {
     if (!e) { tbl.appendChild(h("div", { class: "cut gap", text: "· · ·" })); continue; }
     const g = clubGame(code, e.abbr);
@@ -1993,11 +1994,12 @@ function renderStandings(data, code) {
   // the competition's own words and zones (compMeta in competition.mjs)
   const comp = data.comp || {};
   const table = !!comp.tableSub; // one ranked table (a league phase or a domestic league), not groups
-  const zoneLabel = (e) => (comp.zoneLabels || {})[e.zone] ?? (e.zone === "adv" || e.advanced ? "Through" : e.zone === "po" ? "Play-off" : "Out");
+  // a tiered competition (the Nations League) carries its zone words per group, else the competition's
+  const zoneLabel = (e, g) => (g.zoneLabels || comp.zoneLabels || {})[e.zone] ?? (e.zone === "adv" || e.advanced ? "Through" : e.zone === "po" ? "Play-off" : "Out");
   const played = Math.max(0, ...data.groups.flatMap((g) => g.entries.map((e) => e.played || 0)));
-  subEl.textContent = table ? comp.tableSub : `Group stage · ${data.groups.length} groups`;
+  subEl.textContent = table ? comp.tableSub : `${comp.phaseName || "Group stage"} · ${data.groups.length} groups`;
   wrap.appendChild(h("div", { class: "today-head" }, [
-    h("div", {}, [h("div", { class: "eyebrow", text: table ? `${comp.phaseName} · after ${comp.roundPrefix} ${played}` : "Group stage" }), h("div", { class: "vh" }, [txt("Table "), h("span", { class: "sub", text: comp.standingsHint || "green = advancing" })])]),
+    h("div", {}, [h("div", { class: "eyebrow", text: table ? `${comp.phaseName} · after ${comp.roundPrefix} ${played}` : comp.phaseName || "Group stage" }), h("div", { class: "vh" }, [txt("Table "), h("span", { class: "sub", text: comp.standingsHint || "green = advancing" })])]),
     h("div", {}, [h("div", { class: "picks-sub", text: comp.tableNote || "bracket replaces this once the groups finish" }), h("div", { class: "picks-sub", text: "tap a club to open its next game" })]),
   ]));
   // last result + next fixture per club in this league, from the slate the page already carries
@@ -2014,9 +2016,8 @@ function renderStandings(data, code) {
     const home = up.homeAbbr === abbr;
     return { abbr: home ? up.awayAbbr : up.homeAbbr, logo: home ? up.awayLogo : up.homeLogo, home, when: up.live ? (up.statusText || "LIVE") : `${fmtDay(up.date).replace(/,.*$/, "")} ${fmtTime(up.date)}`, id: up.id, live: !!up.live };
   };
-  const CUT = comp.cuts || {};
-  const headRow = () => h("div", { class: "tr h" }, ["#", "", comp.format === "league" ? "Club" : "Club · domestic league", "P", "W-D-L", "GD", "Pts", "Last", "Next", "Zone"].map((t, i) => h("span", { class: i === 4 ? "wdl" : i === 7 ? "last" : i === 8 ? "next" : i === 9 ? "zone" : i === 0 ? "rk" : "", text: t })));
-  const row = (e) => {
+  const headRow = () => h("div", { class: "tr h" }, ["#", "", comp.format === "league" ? "Club" : comp.nations ? "Team" : "Club · domestic league", "P", "W-D-L", "GD", "Pts", "Last", "Next", "Zone"].map((t, i) => h("span", { class: i === 4 ? "wdl" : i === 7 ? "last" : i === 8 ? "next" : i === 9 ? "zone" : i === 0 ? "rk" : "", text: t })));
+  const row = (e, g) => {
     const lr = lastOf(e.abbr), nx = nextOf(e.abbr);
     const z = e.zone || (e.advanced ? "adv" : "out");
     const r = h("div", { class: `tr ${z}`, title: `${e.name} · open the next game`, onclick: () => { const g = nx || lr; if (g) choose(g.id); } }, [
@@ -2029,19 +2030,23 @@ function renderStandings(data, code) {
       h("span", { class: "pts", text: String(e.pts) }),
       h("span", { class: "last" }, [lr ? h("span", { class: `res ${lr.cls}`, text: lr.text }) : h("span", { class: "res d", text: "—" })]),
       h("span", { class: "next" }, [nx ? h("span", { class: `nx${nx.live ? " live" : ""}` }, [crest(nx.abbr, nx.logo, "xs"), h("b", { text: `${nx.home ? "v" : "@"} ${nx.abbr}` }), txt(nx.when)]) : h("span", { class: "nx", text: "—" })]),
-      h("span", { class: "zone", text: zoneLabel(e) }),
+      h("span", { class: "zone", text: zoneLabel(e, g) }),
     ]);
     return r;
   };
+  let lastTier = null;
   for (const g of data.groups) {
+    // tiers (Nations League A–D) get a heading over their groups
+    if (g.tier && g.tier !== lastTier) { wrap.appendChild(h("div", { class: "vh grp-tier", text: `League ${g.tier}` })); lastTier = g.tier; }
     if (data.groups.length > 1) wrap.appendChild(h("div", { class: "eyebrow grp-name", text: g.name }));
     const tbl = h("div", { class: "tbl" }, [headRow()]);
+    const CUT = g.cuts || comp.cuts;
     let lastZone = null;
     for (const e of g.entries) {
       const z = e.zone || (e.advanced ? "adv" : "out");
-      // a labelled cut line where the zone changes (only when the competition has zones)
-      if (comp.cuts && z !== lastZone) { tbl.appendChild(h("div", { class: `cut ${z}` }, [h("i"), txt(CUT[z] || "")])); lastZone = z; }
-      tbl.appendChild(row(e));
+      // a labelled cut line where the zone changes (only when the competition, or this tier, has zones)
+      if (CUT && z !== lastZone) { tbl.appendChild(h("div", { class: `cut ${z}` }, [h("i"), txt(CUT[z] || "")])); lastZone = z; }
+      tbl.appendChild(row(e, g));
     }
     wrap.appendChild(tbl);
   }

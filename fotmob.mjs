@@ -10,7 +10,8 @@
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36";
 import { COMP } from "./competition.mjs";
-const WC_LEAGUE = COMP.fotmob.leagueId;   // FotMob league id for the active competition
+// FotMob league(s) for the active competition — usually one; the Nations League is one per tier (A–D)
+const FM_LEAGUES = COMP.fotmob.leagues || [COMP.fotmob];
 const FIXTURES_TTL = 10 * 60 * 1000;   // fixture list changes rarely
 const MATCH_TTL = 45 * 1000;           // a live match's data updates as it plays
 
@@ -37,8 +38,10 @@ let _fixtures = { at: 0, data: null };
 export async function fetchFotmobFixtures() {
   const now = Date.now();
   if (_fixtures.data && now - _fixtures.at < FIXTURES_TTL) return _fixtures.data;
-  const pp = nextData(await getHtml(`https://www.fotmob.com/leagues/${WC_LEAGUE}/matches/${COMP.fotmob.slug}`));
-  const all = pp?.fixtures?.allMatches || [];
+  // every league page in parallel; one dead tier just drops its games, all dead throws as before
+  const pages = await Promise.allSettled(FM_LEAGUES.map((l) => getHtml(`https://www.fotmob.com/leagues/${l.leagueId}/matches/${l.slug}`).then(nextData)));
+  if (!pages.some((p) => p.status === "fulfilled")) throw pages[0].reason;
+  const all = pages.flatMap((p) => (p.status === "fulfilled" ? p.value?.fixtures?.allMatches || [] : []));
   const data = all.map((m) => ({
     id: String(m.id),
     pageUrl: m.pageUrl,

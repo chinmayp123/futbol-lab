@@ -118,12 +118,84 @@ export const COMPETITIONS = {
     lookBackDays: 8, lookAheadDays: 10,
     betlogDir: join(DATA_DIR, "bets", "laliga-2026-27"),
   },
+  // UEFA Nations League 2026-27 — national teams in 14 groups across four leagues (A–C: 4 groups of
+  // 4, six matchdays; D: 2 groups of 3, four). League phase MD1–4 in the Sep/Oct window, MD5–6 in
+  // November; League A quarter-finals and the promotion/relegation play-offs in March 2027, Finals
+  // in June. Every feed id below was checked live on 2026-09-28 (DATA_SOURCES.md).
+  unl: {
+    key: "unl-2026-27",
+    name: "UEFA Nations League",
+    short: "UNL",
+    title: "UEFA Nations League 26/27",
+    format: "groups",
+    nations: true,                               // national teams: no club-league line, "Team" not "Club"
+    espn: "uefa.nations",
+    oddsApiSport: "soccer_uefa_nations_league",
+    oddspapiTournamentId: 23755,                 // OddsPapi "uefa-nations-league"
+    // the league phase is two short windows a season, so a small slice of the shared 250 — kept low
+    // enough that the four website competitions stay at 220 and Pick Six keeps its share
+    oddspapiBudget: 20,
+    // FotMob splits the competition into one league per tier; fotmob.mjs reads every one
+    fotmob: { leagues: [
+      { leagueId: 9806, slug: "nations-league-a" }, { leagueId: 9807, slug: "nations-league-b" },
+      { leagueId: 9808, slug: "nations-league-c" }, { leagueId: 9809, slug: "nations-league-d" },
+    ] },
+    fanduel: { competitionId: 11984200, customPageId: null },
+    phaseSlugs: ["league-phase"],                // ESPN's season.slug for group games
+    phaseGames: 6,
+    // zones differ by tier, so they're per league (the letter in ESPN's "Group A1"), picked by
+    // groupZones() below. Rules as adjusted by UEFA for 2026-27, the transition to three leagues in
+    // 2028-29 (uefa.com, "New promotion/relegation system for UEFA Nations League 2026/27"):
+    //   A: top 2 → quarter-finals; the two worst 3rd and two best 4th → A/B play-offs; the two worst 4th relegated
+    //   B: winners promoted; runners-up → A/B play-offs; 4th → B/C play-offs
+    //   C: winners promoted; runners-up → B/C play-offs; nobody relegated (D is dissolved)
+    //   D: every team promoted
+    // "Worst 3rd / best 4th" is a ranking across groups the ESPN table doesn't carry, so League A's
+    // 3rd and 4th are drawn as what's at stake, not as a verdict.
+    leagues: {
+      A: { games: 6, zones: [{ upTo: 2, cls: "adv", label: "QF" }, { upTo: 3, cls: "po", label: "PO?" }, { upTo: 4, cls: "rel", label: "PO/down" }],
+        zoneLabels: { adv: "QF", po: "Safe / PO", rel: "PO / down" },
+        cuts: { adv: "Places 1–2 · quarter-finals in March", po: "Place 3 · the two worst 3rd-placed go to the A/B play-offs", rel: "Place 4 · the two best 4th-placed go to the play-offs, the two worst are relegated" } },
+      B: { games: 6, zones: [{ upTo: 1, cls: "adv", label: "up" }, { upTo: 2, cls: "po", label: "PO" }, { upTo: 3, cls: "mid", label: "" }, { upTo: 4, cls: "rel", label: "PO" }],
+        zoneLabels: { adv: "Up", po: "A/B PO", mid: "", rel: "B/C PO" },
+        cuts: { adv: "Winner · promoted to League A", po: "Runner-up · A/B play-off", mid: "Place 3 · stays in League B", rel: "Place 4 · B/C play-off" } },
+      C: { games: 6, zones: [{ upTo: 1, cls: "adv", label: "up" }, { upTo: 2, cls: "po", label: "PO" }, { upTo: 4, cls: "mid", label: "" }],
+        zoneLabels: { adv: "Up", po: "B/C PO", mid: "" },
+        cuts: { adv: "Winner · promoted to League B", po: "Runner-up · B/C play-off", mid: "Places 3–4 · stay in League C" } },
+      D: { games: 4, zones: [{ upTo: 3, cls: "adv", label: "up" }],
+        zoneLabels: { adv: "Up" },
+        cuts: { adv: "Every League D team is promoted — League D is dissolved for 2028-29" } },
+    },
+    zones: [{ upTo: 2, cls: "adv", label: "QF" }],   // fallback if ESPN renames the groups
+    zoneLabels: { adv: "Through", out: "" },
+    cuts: null,
+    roundPrefix: "MD",
+    phaseName: "League phase",
+    tableSub: null,                              // groups, not one table
+    tableNote: "Leagues A–D · the League A bracket replaces this after MD 6 in November",
+    standingsHint: "green = QF (A) / promoted · amber = play-off · red = play-off or down",
+    // ESPN slugs as used for 2024-25 (checked on its March/June 2025 games). The promotion/relegation
+    // play-offs are two-legged ties between tiers, not a round of the League A bracket — koSide keeps
+    // them off the bracket while their games still get a round pill.
+    // TODO(after MD 6, Nov 2026): re-check these slugs against ESPN's first 2026-27 knockout games.
+    koOrder: ["quarterfinals", "semifinals", "3rd-place-match", "final"],
+    koSide: ["relegation-playoffs"],
+    koLabel: { "relegation-playoffs": "Promotion/relegation play-off", quarterfinals: "Quarter-finals", semifinals: "Semi-finals", "3rd-place-match": "Third place", final: "Final" },
+    koShort: { "relegation-playoffs": "PO", quarterfinals: "QF", semifinals: "SF", "3rd-place-match": "3RD", final: "FINAL" },
+    knockoutWindow: ["20270301", "20270615"],
+    twoLegged: true,                             // QFs and play-offs are home-and-away; the Finals fold as single legs
+    // a window is two matchdays four days apart, then a month or more off: 8 back keeps the last
+    // window's results, 21 ahead reaches the next window's opening days from the last one
+    lookBackDays: 8, lookAheadDays: 21,
+    betlogDir: join(DATA_DIR, "bets", "unl-2026-27"),
+  },
   wc: {
     key: "wc-2026",
     name: "World Cup",
     short: "WC",
     title: "World Cup 2026",
     format: "groups",
+    nations: true,
     espn: "fifa.world",
     oddsApiSport: "soccer_fifa_world_cup",
     oddspapiTournamentId: 16,
@@ -151,7 +223,7 @@ export const COMPETITIONS = {
 };
 
 // the competitions the website shows, in switcher order (each gets a publisher pass + live function)
-export const SITE_COMPETITIONS = ["epl", "laliga", "ucl"];
+export const SITE_COMPETITIONS = ["epl", "laliga", "ucl", "unl"];
 
 function pick() {
   let key = process.env.COMPETITION;
@@ -164,12 +236,19 @@ function pick() {
 export const COMP = pick();
 // a domestic league has no phase slugs: every game is part of the one phase
 export const isPhaseSlug = (slug) => !COMP.phaseSlugs || !slug || COMP.phaseSlugs.includes(slug);
+// a group's zones, games and table words: per tier where the competition has tiers (the Nations
+// League's "Group B3" is League B), else the competition's own
+export function groupRules(groupName) {
+  const tier = COMP.leagues && (String(groupName || "").match(/\b([A-D])\d*$/) || [])[1];
+  const t = tier && COMP.leagues[tier];
+  return t ? { tier, games: t.games, zones: t.zones, zoneLabels: t.zoneLabels, cuts: t.cuts } : { tier: null, games: COMP.phaseGames, zones: COMP.zones, zoneLabels: null, cuts: null };
+}
 // plain-data subset the views show (title bar, round pills, the table's words and zones)
 export const compMeta = () => ({
   key: COMP.key, name: COMP.name, short: COMP.short, title: COMP.title, format: COMP.format,
   koShort: COMP.koShort, standingsHint: COMP.standingsHint, twoLegged: COMP.twoLegged,
   roundPrefix: COMP.roundPrefix, phaseName: COMP.phaseName, tableSub: COMP.tableSub, tableNote: COMP.tableNote,
-  cuts: COMP.cuts, zoneLabels: COMP.zoneLabels,
+  cuts: COMP.cuts, zoneLabels: COMP.zoneLabels, nations: !!COMP.nations,
 });
 
 // domestic league of each club in this season's field — no feed the widget reads carries it, so
@@ -195,4 +274,5 @@ const CLUB_LEAGUES = [
   [/sabah|qaraba/i, "Azerbaijan PL"],
   [/celtic|rangers/i, "Scottish Prem"],
 ];
-export const clubLeague = (name) => (COMP.format === "league" ? null : (CLUB_LEAGUES.find(([re]) => re.test(name || "")) || [])[1] || null);
+// National teams have no club league (and "Romania" would match /roma/).
+export const clubLeague = (name) => (COMP.format === "league" || COMP.nations ? null : (CLUB_LEAGUES.find(([re]) => re.test(name || "")) || [])[1] || null);

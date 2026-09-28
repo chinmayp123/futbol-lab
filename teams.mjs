@@ -16,6 +16,13 @@ const FULL_ALIAS = {
   // ESPN and FanDuel call Deportivo La Coruña just "Deportivo", whose one token also sits inside
   // "Deportivo Alavés" — so FotMob's and Action Network's Alavés matched La Coruña
   "deportivo": "deportivo la coruna",
+  // national teams (Nations League): the feeds disagree on a handful. FotMob's bare "Ireland" is the
+  // Republic — left alone, its one token also sits inside "Northern Ireland" — and ESPN's short
+  // "N Ireland" loses "N" to the 3-letter floor, which would leave just "ireland" the other way
+  "ireland": "republic of ireland", "rep ireland": "republic of ireland", "rep of ireland": "republic of ireland", "republic ireland": "republic of ireland", "ireland republic": "republic of ireland",
+  "n ireland": "northern ireland",
+  "turkey": "turkiye", "czech republic": "czechia", "holland": "netherlands", "faroes": "faroe islands",
+  "bosnia": "bosnia and herzegovina", "bosnia herz": "bosnia and herzegovina", "macedonia": "north macedonia", "fyr macedonia": "north macedonia",
 };
 const TOKEN_ALIAS = { internazionale: "inter", munich: "munchen", muenchen: "munchen", praha: "prague", atletico: "atletico", atlético: "atletico" };
 const GENERIC = new Set(["fc", "cf", "sc", "ac", "afc", "club", "de", "the", "and", "of", "sk", "fk", "sv", "bk", "if", "ss", "us", "ud", "cd", "rc", "rcd", "bsc", "tsv", "sl", "cp", "rb", "as", "ssc", "ogc", "rsc", "kaa", "krc", "losc", "stade", "olympique", "fotball", "fotballklubb", "fussball", "calcio", "1907", "1899", "1900", "1904", "1909", "1913", "1914"]);
@@ -27,10 +34,16 @@ export function tokens(s) {
   const f = fold(s);
   return (FULL_ALIAS[f] || f).split(" ").map((t) => TOKEN_ALIAS[t] || t).filter((t) => t.length >= 3 && !GENERIC.has(t));
 }
-// do two club names refer to the same club?
+// UEFA's national teams. A country name matches only the same country, never by subset: the
+// mixed boards (FanDuel in-play, Action Network) carry "Austria Wien", "Spain U21", "England
+// Women", and subset matching would hand any of them Austria's or Spain's prices
+const key = (T) => [...T].sort().join(" ");
+const NATIONS = new Set(["Albania", "Andorra", "Armenia", "Austria", "Azerbaijan", "Belarus", "Belgium", "Bosnia and Herzegovina", "Bulgaria", "Croatia", "Cyprus", "Czechia", "Denmark", "England", "Estonia", "Faroe Islands", "Finland", "France", "Georgia", "Germany", "Gibraltar", "Greece", "Hungary", "Iceland", "Israel", "Italy", "Kazakhstan", "Kosovo", "Latvia", "Liechtenstein", "Lithuania", "Luxembourg", "Malta", "Moldova", "Montenegro", "Netherlands", "North Macedonia", "Northern Ireland", "Norway", "Poland", "Portugal", "Republic of Ireland", "Romania", "Russia", "San Marino", "Scotland", "Serbia", "Slovakia", "Slovenia", "Spain", "Sweden", "Switzerland", "Türkiye", "Ukraine", "Wales"].map((n) => key(tokens(n))));
+// do two club (or national-team) names refer to the same side?
 export function teamMatch(a, b) {
   const A = tokens(a), B = tokens(b);
   if (!A.length || !B.length) return false;
+  if (NATIONS.has(key(A)) || NATIONS.has(key(B))) return key(A) === key(B);
   const sub = (X, Y) => X.every((t) => Y.includes(t));
   return sub(A, B) || sub(B, A);
 }
@@ -38,9 +51,15 @@ export function teamMatch(a, b) {
 // ref { name, abbr }? Abbreviations only ever match exactly.
 export function refMatch(names, ref, feedAbbr = null) {
   if (!ref) return false;
-  if ([].concat(names).filter(Boolean).some((n) => teamMatch(n, ref.name))) return true;
+  const given = [].concat(names).filter(Boolean);
+  if (given.some((n) => teamMatch(n, ref.name))) return true;
+  // a national team whose names didn't match is a different side ("England Women", "Spain U21"),
+  // however its abbreviation reads - so the abbreviation fallback never overrides the country rule
+  if (given.length && isNation(ref.name)) return false;
   return !!(feedAbbr && ref.abbr && String(feedAbbr).toUpperCase() === String(ref.abbr).toUpperCase());
 }
+// is this one of UEFA's national teams (exact country, after aliases)?
+export const isNation = (name) => NATIONS.has(key(tokens(name)));
 // "Home v Away" / "Home vs Away" / "Home @ Away" / "Home - Away" → [home, away] or null
 export function splitFixtureName(s) {
   const m = String(s || "").split(/\s+(?:v|vs|vs\.|@|-|–|—)\s+/i);

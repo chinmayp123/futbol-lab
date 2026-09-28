@@ -53,7 +53,9 @@ payload in `lib.mjs` first.
 The single source of truth for every competition-specific id and format rule. `COMP` is
 the active entry, chosen once when the module loads: the `COMPETITION` env var, else
 `"competition"` in `odds.config.json`, else `ucl`. Entries: `epl` (Premier League), `laliga`,
-`ucl` (Champions League), `wc` (kept as the reference the tool was built on).
+`ucl` (Champions League), `unl` (Nations League: 14 groups in four tiers, each tier with its own
+zones via `leagues` + `groupRules()`, and four FotMob leagues), `wc` (kept as the reference the
+tool was built on).
 `SITE_COMPETITIONS` lists the ones the website shows. Because the data layer is bound to
 one competition per process, the website runs one publisher pass and one Vercel live
 function per competition rather than switching at runtime.

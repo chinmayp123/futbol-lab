@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { COMP, readConfig } from "./competition.mjs";
-import { teamMatch } from "./teams.mjs";
+import { teamMatch, isNation } from "./teams.mjs";
 
 const API = "https://api.oddspapi.io/v4";
 const SOCCER = 10, WC = COMP.oddspapiTournamentId; // "WC" = the active competition's tournamentId
@@ -84,7 +84,8 @@ async function allBookMarkets(home, away, firstOnly = false) {
   if (!KEY) return [];
   const names = await fixtureNames();
   // strict club match on the fixture's names (teams.mjs); its abbr field only by exact equality
-  const hit = (fx, ref) => fx && (fx.names.some((n) => teamMatch(n, ref.name)) || fx.abbrs.some((a) => a && ref.abbr && a.toUpperCase() === ref.abbr.toUpperCase()));
+  // national teams never fall back to the abbreviation: "England Women" shares ENG with England
+  const hit = (fx, ref) => fx && (fx.names.some((n) => teamMatch(n, ref.name)) || (!(fx.names.length && isNation(ref.name)) && fx.abbrs.some((a) => a && ref.abbr && a.toUpperCase() === ref.abbr.toUpperCase())));
   const out = [];
   for (const book of BOOKS) {
     let odds;

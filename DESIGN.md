@@ -84,7 +84,7 @@ with `gap`, never margins between siblings, so direct manipulation and reorderin
 | Title bar | `#titlebar` | 50px: logo, context line, search, ◀, the three places (Today · Leagues ▾ · Bets, `.nav-tab`), Get app, sign-in; drag region in the desktop app; padding-right follows `env(titlebar-area-*)` so it never sits under the native caption buttons |
 | Bottom bar | `#bnav` + `.bn` | compact only: Today · Leagues · Bets with icons, 64px; the active place white with a blue icon; Leagues shows the open league's short name |
 | Leagues menu | `#lg-menu` + `.lgm-item` | one row per league — badge, name, its live or next game — under the tab; on phones it rises from the bottom bar |
-| League badge | `.lbadge` (+ `.big`) | the league's short name on its colour (`--lg`, from a `c-<code>` class: PL `#b58cff`, LaLiga `#ff9f45`, UCL silver) |
+| League badge | `.lbadge` (+ `.big`) | the league's short name on its colour (`--lg`, from a `c-<code>` class: PL `#b58cff`, LaLiga `#ff9f45`, UCL silver, UNL teal `#36d6c8`) |
 | Hub header | `#hub` + `.lhead` / `.stabs` | above the lower third, outside the scroll: badge, league title and table line, the league switch (`.lchip`, keeps the tab), sub-tabs underlined in the league colour; Bets uses the same tabs; a match gets a breadcrumb (`.crumbs`) instead |
 | Chips | `.chips` + `.lchip` | filters and switches (Fixtures' all/upcoming/results, the record's leagues); on = white with an inset league-colour underline |
 | Lower third | `.third` | 62px, a 10px colour block in the home kit, matchup + status + fact columns |

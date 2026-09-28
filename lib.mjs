@@ -7,7 +7,7 @@ import { get as storeGet, set as storeSet } from "./store.mjs";
 import { fotmobXG, fotmobTeamRates, fetchFotmobFixtures, fotmobPlayerSOT, fotmobMatchday, fotmobPitch, fotmobRecentForm } from "./fotmob.mjs";
 import { actionPublicBetting } from "./actionnetwork.mjs";
 import { fanduelProps } from "./fanduel.mjs";
-import { COMP, isPhaseSlug, compMeta, clubLeague, readConfig } from "./competition.mjs";
+import { COMP, isPhaseSlug, compMeta, clubLeague, groupRules, readConfig } from "./competition.mjs";
 import { teamMatch } from "./teams.mjs";
 
 // every competition-specific id lives in competition.mjs — repoint the tool there, not here
@@ -33,8 +33,24 @@ export async function getJSON(url) {
 export const scoreboard = () => getJSON(`${BASE}/scoreboard`);
 export const scoreboardOn = (yyyymmdd) => getJSON(`${BASE}/scoreboard?dates=${yyyymmdd}`);
 // one call for a whole date span (ESPN accepts YYYYMMDD-YYYYMMDD) — cheaper than a fetch per day
-// when the picker window spans weeks between matchdays
-export const scoreboardRange = (from, to) => getJSON(`${BASE}/scoreboard?dates=${from}-${to}&limit=300`);
+// when the picker window spans weeks between matchdays. On 2026-09-28 ESPN started answering every
+// ranged query with a 400 (every league, past spans too) while whole months (dates=YYYYMM) still
+// worked — so a failed range falls back to the months it spans, trimmed to the span, and skips the
+// ranged call for an hour rather than paying a dead request on every pass.
+let rangeDownUntil = 0;
+export async function scoreboardRange(from, to) {
+  let err = null;
+  if (Date.now() >= rangeDownUntil) {
+    try { return await getJSON(`${BASE}/scoreboard?dates=${from}-${to}&limit=300`); } catch (e) { err = e; rangeDownUntil = Date.now() + 3600e3; }
+  }
+  const months = [];
+  for (let y = +from.slice(0, 4), m = +from.slice(4, 6); y * 100 + m <= +to.slice(0, 6); m === 12 ? (y++, m = 1) : m++) months.push(`${y}${String(m).padStart(2, "0")}`);
+  const boards = await Promise.all(months.map((mo) => getJSON(`${BASE}/scoreboard?dates=${mo}&limit=300`).catch(() => null)));
+  if (!boards.some(Boolean)) throw err || new Error(`ESPN scoreboard unreachable for ${from}-${to}`);
+  const day = (iso) => iso.slice(0, 10).replace(/-/g, "");
+  const events = boards.flatMap((b) => b?.events || []).filter((ev) => day(ev.date) >= from && day(ev.date) <= to);
+  return { ...boards.find(Boolean), events };
+}
 export const summary = (id) => getJSON(`${BASE}/summary?event=${id}`);
 export const allStandings = () => getJSON(STANDINGS_URL);
 
@@ -1332,7 +1348,9 @@ async function scanKnockout() {
   const seen = new Set(), byRound = new Map();
   for (const ev of board.events || []) {
     const slug = ev.season?.slug || "";
-    if (isPhaseSlug(slug) || seen.has(ev.id)) continue;
+    // koSide: knockout games that aren't a bracket round (the Nations League's promotion/relegation
+    // play-offs are ties between tiers — drawn as the bracket's first column they'd look like R16)
+    if (isPhaseSlug(slug) || (COMP.koSide || []).includes(slug) || seen.has(ev.id)) continue;
     seen.add(ev.id);
     const c = ev.competitions[0];
     const home = c.competitors.find((t) => t.homeAway === "home"), away = c.competitors.find((t) => t.homeAway === "away");
@@ -1379,11 +1397,14 @@ export async function getStandings() {
           pts: num(st, "points") || 0, advanced: num(st, "advanced") === 1,
         };
       }).sort((a, b) => (a.rank || 99) - (b.rank || 99));
-      // qualification zone by rank (e.g. UCL: 1–8 straight through, 9–24 play-off) for row colouring
-      for (const e of entries) e.zone = (COMP.zones.find((z) => e.rank != null && e.rank <= z.upTo) || {}).cls || null;
-      return { name: g.name || g.abbreviation || "Group", entries };
+      // qualification zone by rank (e.g. UCL: 1–8 straight through, 9–24 play-off) for row colouring.
+      // A tiered competition (the Nations League) has its own zones, games and words per tier.
+      const name = g.name || g.abbreviation || "Group";
+      const rules = groupRules(name);
+      for (const e of entries) e.zone = (rules.zones.find((z) => e.rank != null && e.rank <= z.upTo) || {}).cls || null;
+      return { name, entries, games: rules.games, tier: rules.tier, zoneLabels: rules.zoneLabels, cuts: rules.cuts };
     });
-    const groupStageDone = COMP.koOrder.length > 0 && groups.length > 0 && groups.every((g) => g.entries.length && g.entries.every((e) => e.played >= COMP.phaseGames));
+    const groupStageDone = COMP.koOrder.length > 0 && groups.length > 0 && groups.every((g) => g.entries.length && g.entries.every((e) => e.played >= g.games));
     const knockout = await scanKnockout().catch(() => []);
     const data = { groups, groupStageDone, knockout, comp: compMeta() };
     standingsCache = { at: now, data };

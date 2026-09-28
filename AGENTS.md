@@ -10,8 +10,8 @@ feeds. This file is about *how to work here* without breaking things.
 ## What this is
 
 **Futbol Lab** (Starball Lab until September 2026): a football match tracker that runs a
-betting model against the **Premier League**, **LaLiga** and the **2026-27 Champions
-League**, with MLS next. One shared data layer in plain ESM, one renderer file, no framework, no
+betting model against the **Premier League**, **LaLiga**, the **2026-27 Champions
+League** and the **2026-27 UEFA Nations League**, with MLS next. One shared data layer in plain ESM, one renderer file, no framework, no
 bundler, zero runtime dependencies in the data layer.
 
 The owner uses **the website** (<https://futbol-lab.vercel.app>,
@@ -143,7 +143,8 @@ corners line, Dortmund's players on Bayern's page.
 ## Current state (September 2026)
 
 Working: the website (Firestore + GitHub Actions publisher + Vercel live functions) for the
-Premier League, LaLiga and the Champions League, live tracking, xG, pitch with lineups and shot map,
+Premier League, LaLiga, the Champions League and the Nations League (no card — see
+DATA_SOURCES.md), live tracking, xG, pitch with lineups and shot map,
 five tabs, the card with its guards, the bet record with CLV, the model scorecard with scorer
 grading, installers, cross-competition form and projections.
 
