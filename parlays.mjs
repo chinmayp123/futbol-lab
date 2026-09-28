@@ -17,7 +17,7 @@
 // the leg is DISCARDED (the old model capped these and then bet them — and ranked by edge, so it
 // picked the biggest model errors first). MAX_EDGE now only shrinks the prob used for EV/Kelly.
 
-import { scoreboardOn, ymd, summary, scorePrediction, pregameProjections, matchConditions, poissonCdf } from "./lib.mjs";
+import { scoreboardOn, ymd, summary, scorePrediction, pregameProjections, matchConditions, poissonCdf, tierOf } from "./lib.mjs";
 import { COMP } from "./competition.mjs";
 import { fotmobXG, fotmobPlayerSOT } from "./fotmob.mjs";
 import { actionPublicBetting } from "./actionnetwork.mjs";
@@ -77,6 +77,14 @@ async function matchLegs(ev, goalsBias = 1, trust = 0.5) {
       const gap = Math.max(Math.abs(pred.wH - mkt[0]), Math.abs(pred.wD - mkt[1]), Math.abs(pred.wA - mkt[2]));
       if (gap > MARKET_GAP) guard = `model ${Math.round(gap * 100)} pts off the market — can't represent this price, skipped`;
     }
+  }
+  // tier guard (competition.mjs `card: false`): Nations League C and D are priced thinly or not at
+  // all, so even a FanDuel line turning up there is one book with nothing to judge it against.
+  // Their legs stay on the Builder, guarded; the card never takes them. (Today the Nations League
+  // has no Action Network board at all, so this removes nothing — it holds the line if one appears.)
+  if (COMP.leagues) {
+    const tier = await tierOf(h.team.displayName);
+    if (tier && COMP.leagues[tier]?.card === false) guard = `League ${tier} is display-only — too thinly priced to judge the model against, not bet`;
   }
 
   // the model's central prediction, used to tag each leg as coherent (agrees with the predicted

@@ -40,7 +40,8 @@ isn't gated. That's what the module reads.
 | team page | the club's whole season across **every competition** (league, cup, Europe) with the same match-page links |
 
 The team page is what makes matchday one work: `recentMatches()` takes a club's last three
-competitive games from wherever it last played (friendlies skipped), so form, corner and
+competitive games from wherever it last played (friendlies skipped — except for national
+teams, whose friendlies are half their games), so form, corner and
 saves projections and scorer numbers exist before a competition has any history of its own.
 
 League ids: 42 Champions League, 47 Premier League, 87 LaLiga. The **Nations League is four
@@ -51,6 +52,21 @@ the lot.
 
 Unofficial and brittle if the pages restructure. Player headshots come from
 `images.fotmob.com/image_resources/playerimages/<id>.png` with an initials fallback.
+
+### eloratings.net — national-team strength (`eloratings.mjs`, no key)
+The World Football Elo Ratings, the Nations League path's rating prior (MODEL.md §1). The
+site's own pages load two plain TSV files, and the module reads the same ones:
+`World.tsv` (rank, rank, two-letter code, rating, …) and `en.teams.tsv` (code, then every
+spelling the site uses). No key; `robots.txt` answered 404 on 2026-09-28, so nothing is
+disallowed. Read at most once a day and kept in `DATA_DIR/cache/eloratings.json`; a failed
+fetch falls back to a copy up to two weeks old, then to `null` (the market-only behaviour).
+On a read-only disk (the Vercel functions) the copy is skipped and the day's cache is in
+memory only.
+
+Names go through `teams.mjs`, and a name matching more than one rated team gets no rating.
+That rule caught the only clash on 2026-09-28: the site also rates Northern Cyprus, spelt
+"N Cyprus", which folds to plain "cyprus" — now aliased like "N Ireland". All 72 spellings
+of the 55 UEFA nations in `NATION_SPELLINGS` resolve to exactly one rated team.
 
 ### Action Network — FanDuel prices and public money (`actionnetwork.mjs`, no key)
 Public JSON. Provides FanDuel's moneyline, spread and total (book id 69 plus state
@@ -128,7 +144,9 @@ line only).
 - **The Nations League has no card.** Action Network doesn't list it (see above), so there's no
   FanDuel 1X2 for the model to be judged against. Match pages still show ESPN's line, FotMob's
   form and FanDuel's corners/BTTS/props where posted; the Odds API and OddsPapi price it on the
-  keyed step, but neither feeds the card's 1X2.
+  keyed step, but neither feeds the card's 1X2. Should a board appear, **Leagues C and D stay
+  off the card** anyway (`card: false` in `competition.mjs`): one book's line on Gibraltar v
+  Malta is nothing to judge a model against.
 
 ---
 

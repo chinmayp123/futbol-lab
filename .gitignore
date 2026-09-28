@@ -16,6 +16,9 @@ site/
 firebase-debug*.log
 firestore-debug.log
 
+# feed caches (eloratings.mjs) — refetched on demand
+cache/
+
 # scratch / build
 mockup.html
 .playwright-mcp/

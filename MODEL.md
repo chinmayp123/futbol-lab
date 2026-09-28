@@ -35,6 +35,43 @@ independent opinion, and a Poisson cannot represent an extreme favourite: a −1
 (90% implied) comes back at ~74%. That gap is arithmetic, not insight. Guard 2 below exists
 because the engine used to bet it.
 
+### National teams — the Elo prior (Nations League only)
+A national team plays 4–6 competitive games a year, and League C/D games are priced thinly or
+not at all. With no line the recipe above used to split 2.7 goals 50/50, so Spain v Gibraltar
+and Gibraltar v Malta came out as the same game. For `nations: true` competitions,
+`nationPrior()` builds a prior from the **World Football Elo ratings** (eloratings.net,
+`eloratings.mjs`):
+
+1. **Rating gap.** `dr = Elo_home − Elo_away + 100` (the site's own home bonus; 0 at a
+   neutral venue). Elo's expected result is `E = 1 / (1 + 10^(−dr/400))`, where a draw counts
+   as half a win.
+2. **Gap → goals.** Find the supremacy `s` whose Poisson expected result `P(win) + P(draw)/2`
+   (Dixon–Coles corrected, as above) equals `E`, by bisection. The total `T` is ESPN's
+   over/under when posted, else 2.6. The weaker side's rate is
+   `max(0.3, (T − s)/2)` and the stronger side's is that plus `s`. Past the 0.3 floor a
+   mismatch scores more rather than re-splitting the same total. `s` is capped at 4.5 goals,
+   which is reached near 800 points apart.
+   Examples (2026-09-28): 100 points ≈ 0.6 goals, 300 ≈ 1.7, 500 ≈ 2.8.
+3. **Form nudge.** Over each side's last six finished games (FotMob team page, any
+   competition, **friendlies included** at half weight), take the goal difference minus the
+   Elo-implied supremacy, cap each at ±3, and shrink:
+   `form = Σ w·residual / (Σ w + 4)`, capped at ±0.5. Then `s' = s + (form_home − form_away)/2`.
+   The nudge is small on purpose. Elo has already moved on those same results, and each
+   residual also carries the opponent's own mis-rating.
+4. **Blend.** Pre-match, with a market line: `λ = 0.75 × λ_market + 0.25 × λ_Elo`, basis
+   "market + Elo". With no line, the Elo rates *are* the base (basis "Elo rating · no
+   market"), and the pre-match read says it is display-only with nothing to judge it
+   against. The xG form blend and calibration steps then apply as usual.
+
+**None of these constants are fitted.** 0.25, 0.3, 4.5, the ±0.5 cap and the four phantom
+games are stated guesses, and the frozen predictions grade them like every other call (the
+basis string records which path made each one). For scale: Malta v Gibraltar came out
+Elo 80/16/4 against ESPN's line 73/18/8. **The prior never reaches the card.**
+`parlays.mjs` calls `scorePrediction` without it, so the card's picks, guards and number of
+picks are unchanged. The Nations League card is empty today anyway: there is no Action
+Network board. A missing rating (feed down, name not matched) leaves `rating` null and the
+old path runs.
+
 ### Live — "run of play"
 Trust the observed rate more as the game wears on: `w = min(1, elapsed / 70)`.
 
@@ -217,12 +254,42 @@ These inform the eye. They never reach the card.
 
 ---
 
+## 7b. What's at stake (Nations League groups)
+
+Not a model: a count. `matchStakes()` takes a group's points, the games each team has played,
+and the group games still to play (ESPN's league-phase fixtures). It enumerates every
+win/draw/loss combination of the *other* remaining games, 3ⁿ of them. For each side and each
+result of *this* game, it collects the final places still reachable **on points**. Level
+points count as either order, because UEFA's head-to-head tie-breakers aren't modelled. The
+places map to the tier's zones (`competition.mjs` → `leagues.<tier>.stakes`), and each side
+gets its single sharpest true clause:
+
+| Clause | Only said when |
+|---|---|
+| already certain of X | every result of every remaining game leaves the side in X |
+| a draw is enough for X | a draw or a win lands in X, whatever else happens |
+| a win secures X | a win lands in X, whatever else happens |
+| a loss confirms Y | a loss lands in Y (its worst zone), whatever else happens |
+| must win to keep X in reach | X is reachable after a win but not after a draw or a loss |
+| a loss ends the hope of X | X is reachable after a win or draw, not after a loss |
+| a win rules out Y | the worst zone Y is reachable after a draw or loss, not after a win |
+
+"In reach" means reachable on points, possibly only through a tie-break. Nothing is said
+when the table and the fixtures disagree: played + left ≠ games per team happens while ESPN
+catches up after a final whistle. Nothing is said either with more than eight other group
+games left, because nothing is ever settled that early. League A's 3rd and 4th depend on a
+ranking across groups the table doesn't carry, so their names say so: "3rd (safe, or the
+A/B play-off)".
+
+---
+
 ## 8. Honest limitations
 
 - Poisson treats goals as independent and ignores red cards, game state, fatigue and
   fixture congestion.
 - **The market does nearly all the pre-match work.** The model's only additions are the
-  form tilt and the public-money signal.
+  form tilt and the public-money signal. National teams also get an Elo prior, which does
+  the work when there is no line, and it isn't fitted either.
 - Three games of form is a small sample; early-season projections are rough.
 - FotMob, Action Network and FanDuel are unofficial endpoints read from public pages and
   can change shape without notice.

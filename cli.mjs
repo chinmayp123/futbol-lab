@@ -16,6 +16,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { fotmobXG } from "./fotmob.mjs";
+import { stakesByEvent } from "./lib.mjs";
 
 import { COMP } from "./competition.mjs";
 const BASE = `https://site.api.espn.com/apis/site/v2/sports/soccer/${COMP.espn}`;
@@ -306,12 +307,15 @@ async function listMatches({ days = 3 } = {}) {
     )
   );
 
+  // what's at stake in the group (tiered competitions only — null for every other)
+  const stakes = await stakesByEvent().catch(() => null);
   console.log(c("bold", `\n  ${COMP.title}\n`));
   let curDay = "";
   for (const ev of events) {
     const day = new Date(ev.date).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
     if (day !== curDay) { curDay = day; console.log(c("cyan", `  ── ${day} ──`)); }
     console.log(matchLine(ev));
+    if (stakes?.[ev.id]?.line) console.log(c("dim", `        at stake: ${stakes[ev.id].line}`));
   }
   console.log(c("dim", "\n  Track one:  node cli.mjs <team name or id>\n"));
   return events;

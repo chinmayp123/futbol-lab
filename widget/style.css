@@ -248,6 +248,9 @@ img { image-rendering: auto; }
 .gstat.on { color: var(--bet); font-weight: 600; }
 .gline { font: 500 9px/1 var(--mono); letter-spacing: .5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .compact .gline { display: none; }
+/* what's at stake under a group game: spans the card, one quiet monospace line */
+.gstake { grid-column: 1 / -1; margin-top: -2px; padding-top: 7px; border-top: 1px solid var(--line); font: 500 9.5px/1.35 var(--mono); letter-spacing: .3px; color: var(--sub); text-align: center; }
+.compact .gstake { padding-top: 5px; font-size: 9px; }
 .pick-toggle { display: inline-block; margin: 14px 0 4px; padding: 6px 10px; border: 1px solid var(--line); background: var(--cell); cursor: pointer; font: 800 12px/1 var(--cd); letter-spacing: .6px; text-transform: uppercase; color: var(--dim); }
 .pick-toggle:hover { color: var(--text); border-color: var(--line3); }
 
@@ -526,6 +529,7 @@ td.lead { color: var(--text); }
 @keyframes champglow { 0%, 100% { text-shadow: 0 0 8px color-mix(in srgb, var(--gold) 35%, transparent); } 50% { text-shadow: 0 0 18px color-mix(in srgb, var(--gold) 75%, transparent); } }
 @keyframes bump { 0% { transform: scale(1); } 30% { transform: scale(1.18); text-shadow: 0 0 16px color-mix(in srgb, var(--accent) 70%, transparent); } 100% { transform: scale(1); text-shadow: none; } }
 .venue { font: 500 10px/1 var(--mono); color: var(--faint); letter-spacing: .5px; text-transform: uppercase; }
+.stakes { font: 500 10.5px/1.35 var(--mono); letter-spacing: .3px; color: var(--sub); text-align: center; max-width: 60ch; }
 /* "also live" chips (compact match header) */
 .alsolive { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 2px; }
 .al-lbl { display: inline-flex; align-items: center; gap: 5px; font: 500 9px/1 var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--bet); }

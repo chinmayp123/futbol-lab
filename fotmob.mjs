@@ -168,14 +168,16 @@ async function teamId(team) {
   for (const f of fixtures) { if (sideMatch(f.home.name, team)) return f.home.id; if (sideMatch(f.away.name, team)) return f.away.id; }
   return null;
 }
-// the club's last `lookback` finished competitive matches, newest first, from any competition
+// the club's last `lookback` finished competitive matches, newest first, from any competition. A
+// national team plays so few competitive games (4–6 a year, a window every month or three) that
+// its friendlies count too — they're half the evidence; the Elo form nudge weights them down itself
 export async function recentMatches(team, lookback = 3) {
   const ucl = (await fetchFotmobFixtures()).filter((f) => f.finished && (sideMatch(f.home.name, team) || sideMatch(f.away.name, team)));
   let pool = ucl;
   try {
     const id = await teamId(team);
     if (id) {
-      const all = (await fetchTeamFixtures(id)).filter((f) => f.finished && !f.friendly && f.pageUrl);
+      const all = (await fetchTeamFixtures(id)).filter((f) => f.finished && (!f.friendly || COMP.nations) && f.pageUrl);
       if (all.length) pool = all;
     }
   } catch { /* team page unavailable — the competition list will do */ }

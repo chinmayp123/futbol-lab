@@ -757,6 +757,8 @@ function gameCard(mt, { withDay = false } = {}) {
       line ? h("span", { class: "gline", text: line }) : null,
     ]),
     h("div", { class: "gteam home" }, [crest(mt.awayAbbr, mt.awayLogo), h("span", { class: "gab", text: mt.awayAbbr }), pre ? null : h("span", { class: "gsc", text: String(mt.awayScore) })]),
+    // what the result settles in the group (tiered competitions only; absent when nothing is settled yet)
+    mt.stakes?.line ? h("div", { class: "gstake", text: mt.stakes.line }) : null,
   ]);
 }
 
@@ -902,6 +904,8 @@ function renderMatch(m) {
     const champ = winSide === "home" ? m.home : m.away;
     extra.push(h("div", { class: "champs", text: `🏆 ${(champ.name || champ.abbr).toUpperCase()} — CHAMPIONS OF EUROPE` }));
   }
+  // what's at stake in the group — only claims the standings and the games left make certain
+  if (m.stakes) extra.push(h("div", { class: "stakes", text: `At stake · ${m.stakes.line || `nothing settled yet · ${m.stakes.left} group games left`}` }));
   if (!expanded && m.venue) extra.push(h("div", { class: "venue", text: m.venue }));
   if (extra.length) blocks.push(h("div", { class: "hero-extra" }, extra));
   if (!expanded) { const sw = liveSwitcherChips(m.id); if (sw) blocks.push(sw); }
@@ -952,6 +956,11 @@ function renderMatch(m) {
       blocks.push(h("div", { class: "winbar" }, [
         h("span", { class: "h", style: { flex: String(Math.max(p.wH, 0.001)) } }), h("span", { class: "d", style: { flex: String(Math.max(p.wD, 0.001)) } }), h("span", { class: "a", style: { flex: String(Math.max(p.wA, 0.001)) } }),
       ]));
+    }
+    // national teams: the Elo prior that went into the pre-match number, so the blend is visible
+    if (pre && m.rating) {
+      const r = m.rating, pc = (x) => Math.round(x * 100);
+      blocks.push(h("div", { class: "adv90", text: `Elo prior · ${m.home.abbr} ${r.home.elo} (#${r.home.rank}) v ${m.away.abbr} ${r.away.elo} (#${r.away.rank}) · ${pc(r.wH)}/${pc(r.wD)}/${pc(r.wA)} · eloratings.net` }));
     }
     if (expanded && p.pOver25 != null) blocks.push(h("div", { class: "winlegend" }, [h("span", { text: `Over 2.5: ${pctR(p.pOver25)}` }), h("span", { text: `BTTS: ${pctR(p.pBTTS)}` })]));
     if (expanded && m.momentum && m.momentum.length >= 5) {

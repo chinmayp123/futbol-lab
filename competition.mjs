@@ -155,17 +155,28 @@ export const COMPETITIONS = {
     leagues: {
       A: { games: 6, zones: [{ upTo: 2, cls: "adv", label: "QF" }, { upTo: 3, cls: "po", label: "PO?" }, { upTo: 4, cls: "rel", label: "PO/down" }],
         zoneLabels: { adv: "QF", po: "Safe / PO", rel: "PO / down" },
-        cuts: { adv: "Places 1–2 · quarter-finals in March", po: "Place 3 · the two worst 3rd-placed go to the A/B play-offs", rel: "Place 4 · the two best 4th-placed go to the play-offs, the two worst are relegated" } },
+        cuts: { adv: "Places 1–2 · quarter-finals in March", po: "Place 3 · the two worst 3rd-placed go to the A/B play-offs", rel: "Place 4 · the two best 4th-placed go to the play-offs, the two worst are relegated" },
+        stakes: { adv: "a quarter-final place", po: "3rd (safe, or the A/B play-off)", rel: "4th (a play-off, or relegation)" } },
       B: { games: 6, zones: [{ upTo: 1, cls: "adv", label: "up" }, { upTo: 2, cls: "po", label: "PO" }, { upTo: 3, cls: "mid", label: "" }, { upTo: 4, cls: "rel", label: "PO" }],
         zoneLabels: { adv: "Up", po: "A/B PO", mid: "", rel: "B/C PO" },
-        cuts: { adv: "Winner · promoted to League A", po: "Runner-up · A/B play-off", mid: "Place 3 · stays in League B", rel: "Place 4 · B/C play-off" } },
+        cuts: { adv: "Winner · promoted to League A", po: "Runner-up · A/B play-off", mid: "Place 3 · stays in League B", rel: "Place 4 · B/C play-off" },
+        stakes: { adv: "promotion", po: "the A/B play-off", mid: "3rd (staying in League B)", rel: "the B/C play-off" } },
       C: { games: 6, zones: [{ upTo: 1, cls: "adv", label: "up" }, { upTo: 2, cls: "po", label: "PO" }, { upTo: 4, cls: "mid", label: "" }],
         zoneLabels: { adv: "Up", po: "B/C PO", mid: "" },
-        cuts: { adv: "Winner · promoted to League B", po: "Runner-up · B/C play-off", mid: "Places 3–4 · stay in League C" } },
+        cuts: { adv: "Winner · promoted to League B", po: "Runner-up · B/C play-off", mid: "Places 3–4 · stay in League C" },
+        stakes: { adv: "promotion", po: "the B/C play-off", mid: "staying in League C" }, card: false },
       D: { games: 4, zones: [{ upTo: 3, cls: "adv", label: "up" }],
         zoneLabels: { adv: "Up" },
-        cuts: { adv: "Every League D team is promoted — League D is dissolved for 2028-29" } },
+        cuts: { adv: "Every League D team is promoted — League D is dissolved for 2028-29" },
+        stakes: { adv: "promotion" }, card: false },
     },
+    // `stakes` names each zone for the "what's at stake" line under a game (lib.matchStakes: "a win
+    // secures promotion", "a loss confirms the B/C play-off"); a tier without it gets no line.
+    // `card: false` keeps a tier off the daily card whatever odds turn up: Leagues C and D are priced
+    // thinly or not at all (DATA_SOURCES.md — no League D side on The Odds API's list), so a lone
+    // line there is nothing to be judged against. Their games stay display-only.
+    // The league phase's first and last dates: the stakes line reads every group game in between.
+    phaseDates: ["20260924", "20261117"],
     zones: [{ upTo: 2, cls: "adv", label: "QF" }],   // fallback if ESPN renames the groups
     zoneLabels: { adv: "Through", out: "" },
     cuts: null,
@@ -241,7 +252,8 @@ export const isPhaseSlug = (slug) => !COMP.phaseSlugs || !slug || COMP.phaseSlug
 export function groupRules(groupName) {
   const tier = COMP.leagues && (String(groupName || "").match(/\b([A-D])\d*$/) || [])[1];
   const t = tier && COMP.leagues[tier];
-  return t ? { tier, games: t.games, zones: t.zones, zoneLabels: t.zoneLabels, cuts: t.cuts } : { tier: null, games: COMP.phaseGames, zones: COMP.zones, zoneLabels: null, cuts: null };
+  return t ? { tier, games: t.games, zones: t.zones, zoneLabels: t.zoneLabels, cuts: t.cuts, stakes: t.stakes || null, card: t.card !== false }
+    : { tier: null, games: COMP.phaseGames, zones: COMP.zones, zoneLabels: null, cuts: null, stakes: null, card: true };
 }
 // plain-data subset the views show (title bar, round pills, the table's words and zones)
 export const compMeta = () => ({

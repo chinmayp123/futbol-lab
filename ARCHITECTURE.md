@@ -104,6 +104,7 @@ checks each one matches its own country and no other — add a row when a feed s
 | `actionnetwork.mjs` | FanDuel moneyline/spread/total, public betting tickets % vs money % | none | returns `null` |
 | `fanduel.mjs` | corners O/U, BTTS, anytime-scorer and shots-on-target prices | none | returns `null` |
 | `oddspapi.mjs` | best price across books for corners, BTTS, DNB, team totals, Asian handicaps | optional | returns `null` |
+| `eloratings.mjs` | World Football Elo ratings for national teams (the Nations League prior), cached a day in `DATA_DIR/cache` | none | stale copy up to 14 days, else `null` |
 | The Odds API (in `lib.mjs`) | multi-book moneyline + player props | optional | falls back to Action Network |
 
 Every one of them swallows its own errors and returns `null`. **A dead feed must never
@@ -126,6 +127,7 @@ The big one (~1500 lines). Three layers inside it:
 | `getWidgetState(query)` | everything for one tracked match | every poll |
 | `listMatchesData()` | the slate: one row per game with a market prediction | Matchday, search, table |
 | `getStandings()` | league table with zones, or the folded knockout bracket | Table |
+| `stakesByEvent()` | "what's at stake" per unplayed group game (tiered competitions only), from `matchStakes()` | slate rows, match view |
 | `getDailyParlays()` | the morning card (cached 30 min) | Matchday |
 | `getParlayMenu()` | every priced candidate leg per game (cached 30 min) | Builder |
 | `getRecord()` | bet log + calibration + graded predictions (cached 5 min) | Record |
@@ -231,6 +233,7 @@ Under `DATA_DIR` (repo when run from source, per-user app data when installed):
 | `bets/<competition>/predictions.json` | the model scorecard (below) |
 | `bets/<competition>/pregame.json` | pre-match projection snapshots, graded against final box scores |
 | `bets/<competition>/latest.txt` | the morning card as plain text |
+| `cache/eloratings.json` | **gitignored.** eloratings.net's table, refetched at most daily; safe to delete |
 
 Each competition keeps its own folder, so calibrations never bleed across tournaments.
 

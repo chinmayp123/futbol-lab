@@ -4,7 +4,8 @@
 // Everything here returns plain data — no terminal ANSI, no DOM — so any front end can use it.
 
 import { get as storeGet, set as storeSet } from "./store.mjs";
-import { fotmobXG, fotmobTeamRates, fetchFotmobFixtures, fotmobPlayerSOT, fotmobMatchday, fotmobPitch, fotmobRecentForm } from "./fotmob.mjs";
+import { fotmobXG, fotmobTeamRates, fetchFotmobFixtures, fotmobPlayerSOT, fotmobMatchday, fotmobPitch, fotmobRecentForm, recentMatches } from "./fotmob.mjs";
+import { eloRating } from "./eloratings.mjs";
 import { actionPublicBetting } from "./actionnetwork.mjs";
 import { fanduelProps } from "./fanduel.mjs";
 import { COMP, isPhaseSlug, compMeta, clubLeague, groupRules, readConfig } from "./competition.mjs";
@@ -427,7 +428,8 @@ export async function matchConditions(ev, homeRef, awayRef) {
 // model score prediction: run-of-play once live, market-implied pre-match.
 // realXG (FotMob, optional) replaces the shot proxy with true cumulative xG when present.
 // cond (optional) applies a small fatigue/altitude/heat tilt to expected goals.
-export function scorePrediction(ev, sum, liveOdds, realXG = null, priors = null, cond = null, goalsBias = 1) {
+// rating (optional, national teams only — nationPrior()) is the Elo + form prior, blended pre-match.
+export function scorePrediction(ev, sum, liveOdds, realXG = null, priors = null, cond = null, goalsBias = 1, rating = null) {
   const comp = ev.competitions[0];
   const home = comp.competitors.find((t) => t.homeAway === "home");
   const away = comp.competitors.find((t) => t.homeAway === "away");
@@ -464,12 +466,22 @@ export function scorePrediction(ev, sum, liveOdds, realXG = null, priors = null,
     remLamH = Math.max(0.05, (total + sup) / 2);
     remLamA = Math.max(0.05, (total - sup) / 2);
     basis = "from market";
+    // national teams: blend in the Elo + form prior (nationPrior, MODEL.md §1). With a market line it
+    // takes a minority share — the market still knows more than a rating does. With none (most of
+    // Leagues C and D) it replaces what used to be a flat 50/50 split of 2.7 goals, which called
+    // Gibraltar v Malta and Spain v Gibraltar the same game.
+    if (rating && state === "pre") {
+      const w = probs ? RATING_WEIGHT : 1;
+      remLamH = (1 - w) * remLamH + w * rating.lamH;
+      remLamA = (1 - w) * remLamA + w * rating.lamA;
+      basis = probs ? "market + Elo" : "Elo rating · no market";
+    }
     // blend in each team's Round 1 xG form (FotMob) so the pregame line reflects how they
     // actually played, not just the market — market gets the majority weight (1 game is noisy)
     if (priors && state === "pre") {
       remLamH = 0.55 * remLamH + 0.45 * priors.home;
       remLamA = 0.55 * remLamA + 0.45 * priors.away;
-      basis = "market + R1 form";
+      basis = rating ? `${basis} + R1 form` : "market + R1 form";
     }
     // goal-expectation calibration (pregame only): scale the line toward the realized scoring
     // environment so the model stops over-firing Unders / Draws / BTTS-No. 1.0 = no change. The
@@ -628,13 +640,16 @@ export function prematchPicks(p, HA, AA) {
   const favIsHome = p.wH >= p.wA;
   const favAbbr = favIsHome ? HA : AA;
   const favProb = Math.round((favIsHome ? p.wH : p.wA) * 100);
+  // a national-team game with no line is priced by the Elo prior alone — say so rather than claim a
+  // market read, and say there's nothing to judge it against
+  const src = /no market/.test(p.basis || "") ? "Pre-match read off the Elo rating — no market line to judge it against, display-only." : "Pre-match read off the market line — fair value, not an edge.";
 
   // match result
   if (favProb >= 60) {
     picks.push({
       conf: favProb >= 70 ? "Strong lean" : "Lean",
       bet: `${favAbbr} to win — model ${favProb}%`,
-      text: `${favAbbr} projected to win (model ${favProb}%, predicted ${p.ph}–${p.pa}). Pre-match read off the market line — fair value, not an edge.`,
+      text: `${favAbbr} projected to win (model ${favProb}%, predicted ${p.ph}–${p.pa}). ${src}`,
     });
   } else {
     picks.push({
@@ -708,7 +723,7 @@ export async function pregameProjections(home, away) {
 }
 
 // one match → a complete plain-data view (scores, stats, odds, prediction, recs, keepers, events)
-export function buildMatchView(ev, sum, liveOdds, realXG = null, publicBetting = null, priors = null, conditions = null, goalsBias = 1) {
+export function buildMatchView(ev, sum, liveOdds, realXG = null, publicBetting = null, priors = null, conditions = null, goalsBias = 1, rating = null) {
   const comp = ev.competitions[0];
   const home = comp.competitors.find((t) => t.homeAway === "home");
   const away = comp.competitors.find((t) => t.homeAway === "away");
@@ -801,7 +816,7 @@ export function buildMatchView(ev, sum, liveOdds, realXG = null, publicBetting =
   }
 
   // prediction + recommended bets — run-of-play model once live, market-based pre-match
-  const prediction = scorePrediction(ev, sum, liveOdds, realXG, priors?.xgPrior, conditions?.tilt, goalsBias);
+  const prediction = scorePrediction(ev, sum, liveOdds, realXG, priors?.xgPrior, conditions?.tilt, goalsBias, rating);
   const model = bettingModel(ev, sum, liveOdds, realXG, prediction);
   let recs = model ? model.recs : [];
   let recsBasis = model ? "run of play" : null;
@@ -1019,6 +1034,8 @@ export async function listMatchesData(opts = {}) {
   // one cached odds fetch covers every row's predicted scoreline
   let oddsEvents = null;
   if (ODDS_KEY) { try { oddsEvents = await fetchOddsEvents(); } catch { /* no predictions */ } }
+  // what's at stake under each group game (tiered competitions only; null everywhere else)
+  const stakes = await stakesByEvent();
   return events.map((ev) => {
     const comp = ev.competitions[0];
     const home = comp.competitors.find((t) => t.homeAway === "home");
@@ -1045,6 +1062,7 @@ export async function listMatchesData(opts = {}) {
       homeLeague: clubLeague(home.team.displayName), awayLeague: clubLeague(away.team.displayName),
       live: state === "in", statusText: state === "in" ? (comp.status.displayClock || "LIVE") : state === "post" ? "FT" : null,
       pred,
+      ...(stakes ? { stakes: stakes[ev.id] || null } : {}),
     };
   });
 }
@@ -1414,6 +1432,190 @@ export async function getStandings() {
   }
 }
 
+// ── what's at stake (tiered groups: the Nations League) ─────────────────────────────────────────
+// For a group game still to play: what each side's result would settle, as a pure function of the
+// group's points and the group games left. Every W/D/L combination of the other remaining games is
+// enumerated (3^n), and for each side and each result of THIS game we collect the final places
+// still reachable on points, then name them through the tier's zones (competition.mjs `stakes`).
+// Level points count as either order — UEFA's head-to-head tie-breakers aren't modelled — so
+// "secures" and "confirms" are only said when no tie could undo them, and "in reach" means
+// reachable on points, nothing stronger. With more than STAKES_MAX_OTHERS other games left nothing
+// is ever settled yet, so the enumeration isn't run at all (and it keeps the cost at 3^9 per game).
+const STAKES_MAX_OTHERS = 8;
+export function matchStakes({ entries, remaining, home, away, rules, group = null }) {
+  if (!rules?.stakes || !rules.zones?.length || !entries?.length) return null;
+  if (remaining.length > STAKES_MAX_OTHERS) return null;
+  const idx = (name) => entries.findIndex((e) => teamMatch(e.name, name));
+  const hi = idx(home), ai = idx(away);
+  if (hi < 0 || ai < 0 || hi === ai) return null;
+  const others = remaining.map(([h, a]) => [idx(h), idx(a)]);
+  if (others.some(([h, a]) => h < 0 || a < 0)) return null;
+  // the table and the fixture list must agree: games played + games left = games per team, or the
+  // standings are mid-update (a game just ended) and nothing can be claimed from them
+  const left = entries.map(() => 0);
+  for (const [h, a] of [[hi, ai], ...others]) { left[h]++; left[a]++; }
+  if (entries.some((e, i) => (Number(e.played) || 0) + left[i] !== rules.games)) return null;
+
+  const zoneOf = (pos) => { const z = rules.zones.findIndex((x) => pos <= x.upTo); return z < 0 ? rules.zones.length : z; };
+  const nameOf = (z) => (z < rules.zones.length ? rules.stakes[rules.zones[z].cls] : rules.stakes.out) || null;
+  // reach[side][result] = Set of zones; result 0 = home win, 1 = draw, 2 = away win
+  const reach = [[new Set(), new Set(), new Set()], [new Set(), new Set(), new Set()]];
+  const pts = entries.map((e) => Number(e.pts) || 0);
+  const settle = (r) => {
+    for (const [k, t] of [[0, hi], [1, ai]]) {
+      const p = pts[t];
+      let best = 1, worst = 0;
+      for (const q of pts) { if (q > p) best++; if (q >= p) worst++; }
+      for (let pos = best; pos <= worst; pos++) reach[k][r].add(zoneOf(pos));
+    }
+  };
+  const walk = (i, r) => {
+    if (i === others.length) return settle(r);
+    const [h, a] = others[i];
+    pts[h] += 3; walk(i + 1, r); pts[h] -= 3;
+    pts[h] += 1; pts[a] += 1; walk(i + 1, r); pts[h] -= 1; pts[a] -= 1;
+    pts[a] += 3; walk(i + 1, r); pts[a] -= 3;
+  };
+  pts[hi] += 3; walk(0, 0); pts[hi] -= 3;
+  pts[hi] += 1; pts[ai] += 1; walk(0, 1); pts[hi] -= 1; pts[ai] -= 1;
+  pts[ai] += 3; walk(0, 2); pts[ai] -= 3;
+
+  // one clause per side, the sharpest true one. A win is never worse for a side than a draw or a
+  // loss, so its best reachable zone always sits in the win set and its worst in the loss set.
+  const clause = (k) => {
+    const [W, D, L] = k === 0 ? reach[0] : [reach[1][2], reach[1][1], reach[1][0]];
+    const all = new Set([...W, ...D, ...L]);
+    const best = Math.min(...all), worst = Math.max(...all);
+    if (!nameOf(best) || !nameOf(worst)) return null;
+    if (all.size === 1) return { kind: "done", zone: best, text: `already certain of ${nameOf(best)}` };
+    if (D.size === 1 && D.has(best)) return { kind: "draw", zone: best, text: `a draw is enough for ${nameOf(best)}` };
+    if (W.size === 1) return { kind: "win", zone: best, text: `a win secures ${nameOf(best)}` };
+    if (L.size === 1) return { kind: "loss", zone: worst, text: `a loss confirms ${nameOf(worst)}` };
+    if (!D.has(best) && !L.has(best)) return { kind: "must", zone: best, text: `must win to keep ${nameOf(best)} in reach` };
+    if (!L.has(best)) return { kind: "avoid", zone: best, text: `a loss ends the hope of ${nameOf(best)}` };
+    if (!W.has(worst)) return { kind: "escape", zone: worst, text: `a win rules out ${nameOf(worst)}` };
+    return null;
+  };
+  const [ch, ca] = [clause(0), clause(1)];
+  const both = ch && ca && ch.kind === "done" && ca.kind === "done" && ch.zone === ca.zone;
+  const line = both ? `both already certain of ${nameOf(ch.zone)}`
+    : [ch && `${home}: ${ch.text}`, ca && `${away}: ${ca.text}`].filter(Boolean).join(" · ") || null;
+  return { line, home: ch?.text || null, away: ca?.text || null, left: remaining.length + 1, group };
+}
+
+// every unplayed group game's stakes, by ESPN event id — only for competitions whose tiers name
+// their zones (so the Premier League, LaLiga and the Champions League never fetch anything here).
+// One ranged ESPN call over the league phase plus the cached standings; cached like the standings.
+let stakesCache = { at: 0, data: null };
+export async function stakesByEvent() {
+  if (!COMP.leagues || !COMP.phaseDates) return null;
+  const now = Date.now();
+  if (stakesCache.data && now - stakesCache.at < STANDINGS_TTL) return stakesCache.data;
+  try {
+    const [std, board] = await Promise.all([getStandings(), scoreboardRange(...COMP.phaseDates)]);
+    if (!std?.groups?.length) return null;
+    const games = (board.events || []).filter((ev) => isPhaseSlug(ev.season?.slug)).map((ev) => {
+      const c = ev.competitions[0];
+      const side = (ha) => c.competitors.find((t) => t.homeAway === ha)?.team?.displayName || "";
+      return { id: ev.id, state: c.status?.type?.state, home: side("home"), away: side("away") };
+    });
+    const out = {};
+    for (const g of std.groups) {
+      const rules = groupRules(g.name);
+      if (!rules.stakes) continue;
+      const member = (n) => g.entries.some((e) => teamMatch(e.name, n));
+      const left = games.filter((x) => x.state !== "post" && member(x.home) && member(x.away));
+      for (const x of left) {
+        const st = matchStakes({ entries: g.entries, remaining: left.filter((y) => y !== x).map((y) => [y.home, y.away]), home: x.home, away: x.away, rules, group: g.name });
+        if (st) out[x.id] = st;
+      }
+    }
+    stakesCache = { at: now, data: out };
+    return out;
+  } catch { return null; }
+}
+// the tier a national team's group sits in ("C" for Group C2), or null — the card's C/D guard
+export async function tierOf(teamName) {
+  if (!COMP.leagues) return null;
+  const std = await getStandings().catch(() => null);
+  const g = (std?.groups || []).find((x) => x.entries.some((e) => teamMatch(e.name, teamName)));
+  return g ? groupRules(g.name).tier : null;
+}
+
+// ── national-team rating prior (MODEL.md §1, "national teams") ─────────────────────────────────
+// A national team plays 4–6 competitive games a year and League C/D games are barely priced, so the
+// club recipe (rebuild the market line, tilt it by three games of xG) has little to work with. This
+// prior is World Football Elo (eloratings.mjs) turned into goal rates, nudged by recent results
+// against what Elo expected. Not fitted: the constants are stated, and the frozen predictions grade
+// it like everything else. Match-page path only — the daily card never sees it.
+const RATING_HOME_ADV = 100;   // eloratings.net's own home bonus, in rating points
+const RATING_TOTAL = 2.6;      // goals in an unpriced international (used only when ESPN has no total)
+const RATING_WEAK_FLOOR = 0.3; // the weaker side's goal rate never drops below this
+const RATING_MAX_SUP = 4.5;    // goals; reached near 800 points apart (Spain v Gibraltar is ~1270) — no rout is priced past it
+const RATING_WEIGHT = 0.25;    // the prior's share when a market line exists
+const FORM_GAMES = 6, FORM_SHRINK = 4, FORM_CAP = 0.5;
+// goal rates for a signed supremacy: the total holds until the weaker side hits the floor, after
+// which the stronger side's rate carries the rest — a mismatch scores more, not the same 2.6 split
+const splitSup = (sup, total) => {
+  const s = Math.min(RATING_MAX_SUP, Math.abs(sup)), weak = Math.max(RATING_WEAK_FLOOR, (total - s) / 2);
+  return sup >= 0 ? [weak + s, weak] : [weak, weak + s];
+};
+// the goal supremacy whose Poisson expected score (win + half a draw) equals Elo's expected result
+// 1 / (1 + 10^(−dr/400)); signed like dr. Bisection — the expected score rises with supremacy.
+export function eloSupremacy(dr, total = RATING_TOTAL) {
+  const we = 1 / (1 + 10 ** (-Math.abs(dr) / 400));
+  let lo = 0, hi = RATING_MAX_SUP;
+  for (let i = 0; i < 30; i++) {
+    const mid = (lo + hi) / 2, [s, w] = splitSup(mid, total), [pS, pD] = outcomeProbs(s, w, 0, 0);
+    if (pS + pD / 2 < we) lo = mid; else hi = mid;
+  }
+  return dr >= 0 ? lo : -lo;
+}
+// recent results against what Elo expected, in goals a game: each finished game's goal difference
+// minus the Elo-implied supremacy (opponent's rating, home bonus to whoever FotMob lists at home),
+// friendlies at half weight (rotated squads), each residual capped at ±3 so one rout can't dominate,
+// shrunk toward 0 by FORM_SHRINK phantom games and capped at ±FORM_CAP. Elo has already moved on
+// these same results, which is why the nudge is kept this small.
+async function nationForm(ref, myElo) {
+  const games = await recentMatches(ref, FORM_GAMES).catch(() => []);
+  let num = 0, den = 0, n = 0;
+  for (const f of games) {
+    if (f.home.score == null || f.away.score == null) continue;
+    const atHome = teamMatch(f.home.name, ref.name);
+    const opp = await eloRating(atHome ? f.away.name : f.home.name);
+    if (!opp) continue;
+    const dr = myElo - opp.rating + (atHome ? RATING_HOME_ADV : -RATING_HOME_ADV);
+    const gd = atHome ? f.home.score - f.away.score : f.away.score - f.home.score;
+    const res = Math.max(-3, Math.min(3, gd - eloSupremacy(dr)));
+    const w = f.friendly ? 0.5 : 1;
+    num += w * res; den += w; n++;
+  }
+  return { adj: Math.max(-FORM_CAP, Math.min(FORM_CAP, num / (den + FORM_SHRINK))), games: n };
+}
+// the prior for one game → { lamH, lamA, wH, wD, wA, home/away: { elo, rank, form, games }, … } or
+// null (not a national-team competition, or either side unrated — the caller keeps the market path)
+export async function nationPrior(homeRef, awayRef, { neutral = false, total = null } = {}) {
+  if (!COMP.nations) return null;
+  try {
+    const [h, a] = await Promise.all([eloRating(homeRef.name), eloRating(awayRef.name)]);
+    if (!h || !a) return null;
+    const [fh, fa] = await Promise.all([nationForm(homeRef, h.rating), nationForm(awayRef, a.rating)]);
+    const T = Number(total) > 0 ? Number(total) : RATING_TOTAL;
+    const dr = h.rating - a.rating + (neutral ? 0 : RATING_HOME_ADV);
+    const eloSup = eloSupremacy(dr, T);
+    // each side's form is a full goal-difference residual that also carries its opponents' own
+    // mis-rating, so half of the difference is used
+    const sup = eloSup + (fh.adj - fa.adj) / 2;
+    const [lamH, lamA] = splitSup(sup, T);
+    const [wH, wD, wA] = outcomeProbs(lamH, lamA, 0, 0);
+    return {
+      source: "eloratings.net", dr, eloSup, sup, total: T, lamH, lamA, wH, wD, wA,
+      home: { elo: h.rating, rank: h.rank, form: fh.adj, games: fh.games },
+      away: { elo: a.rating, rank: a.rank, form: fa.adj, games: fa.games },
+    };
+  } catch { return null; }
+}
+
 // high-level state for the widget: a single match view (by query, or the lone live game),
 // plus the day's match list for the picker. Never throws — returns { error } instead.
 export async function getWidgetState(query) {
@@ -1459,11 +1661,14 @@ export async function getWidgetState(query) {
     // real xG once live; Action Network splits + FanDuel odds always; pregame projections
     // (corners/saves/xG priors from Round 1 form) only before kickoff — all best-effort, parallel
     const isPre = comp0.status.type.state === "pre";
-    const [realXG, publicBetting, priors, conditions] = await Promise.all([
+    // national teams also get the Elo + form prior pre-match (null for clubs, or if either side is unrated)
+    const espnTotal = Number((sum.pickcenter || sum.odds || [])[0]?.overUnder) || null;
+    const [realXG, publicBetting, priors, conditions, rating] = await Promise.all([
       isPre ? Promise.resolve(null) : fotmobXG(homeRef, awayRef, ev.date),
       actionPublicBetting(homeRef, awayRef),
       isPre ? pregameProjections(homeRef, awayRef) : Promise.resolve(null),
       matchConditions(ev, homeRef, awayRef),
+      isPre && COMP.nations ? nationPrior(homeRef, awayRef, { neutral: !!comp0.neutralSite, total: espnTotal }) : Promise.resolve(null),
     ]);
     // persist the pregame projection while still pre; once live/finished, re-attach the saved
     // snapshot so the section stays visible to compare against the actual stats. (scorePrediction
@@ -1477,7 +1682,10 @@ export async function getWidgetState(query) {
     // goal-expectation calibration factor (learned from settled Total legs). Lazy import — betlog
     // imports from this module, so a static import would create a load-time cycle.
     const gb = await import("./betlog.mjs").then((b) => b.goalsBias().factor).catch(() => 1);
-    const view = buildMatchView(ev, sum, liveOdds, realXG, publicBetting, pregame, conditions, gb);
+    const view = buildMatchView(ev, sum, liveOdds, realXG, publicBetting, pregame, conditions, gb, rating);
+    if (rating) view.rating = rating;
+    // the group's "what's at stake" line (tiered competitions only — the key is absent elsewhere)
+    if (COMP.leagues) view.stakes = (await stakesByEvent())?.[ev.id] || null;
     if (isPre && view.prediction) freezePrediction(ev, view.prediction);
     // (the scorer projections are built a little further down; they're frozen there)
     // the frozen pre-match call rides along so a live or finished game can show what was predicted

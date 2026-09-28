@@ -23,6 +23,8 @@ const FULL_ALIAS = {
   // "N Ireland" loses "N" to the 3-letter floor, which would leave just "ireland" the other way
   "ireland": "republic of ireland", "rep ireland": "republic of ireland", "rep of ireland": "republic of ireland", "republic ireland": "republic of ireland", "ireland republic": "republic of ireland",
   "n ireland": "northern ireland",
+  // eloratings.net rates Northern Cyprus too, spelt "N Cyprus" — which folds to plain "cyprus"
+  "n cyprus": "northern cyprus",
   "turkey": "turkiye", "czech republic": "czechia", "holland": "netherlands", "faroes": "faroe islands",
   "bosnia": "bosnia and herzegovina", "bosnia herz": "bosnia and herzegovina", "macedonia": "north macedonia", "fyr macedonia": "north macedonia",
 };
