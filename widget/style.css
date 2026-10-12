@@ -16,6 +16,7 @@
   --disp: "Barlow", -apple-system, "Segoe UI", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
   --rail: 300px;
+  --ease-out: cubic-bezier(.23, 1, .32, 1);   /* UI motion: moves at once, lands softly (never ease-in on UI) */
   /* legacy aliases — older rules and inline classes still key on these */
   --txt: var(--text); --muted: var(--dim); --green: var(--bet); --pink: var(--neg);
   --home: #4f8dff; --away: #ff8fb3;
@@ -26,6 +27,9 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 [hidden] { display: none !important; }
 html, body { height: 100%; background: transparent; overflow: hidden; }
+/* phone tells: no grey flash on tap, no font inflation in landscape, and the document behind the app's
+   own scrollers never rubber-bands or pull-to-refreshes (the .body scrolls, the page doesn't) */
+html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; overscroll-behavior: none; }
 body {
   color: var(--text); font-family: var(--disp); font-size: 12px;
   -webkit-font-smoothing: antialiased; -webkit-user-select: none; user-select: none;
@@ -34,9 +38,17 @@ body {
 .mono { font-family: var(--mono); }
 button { font-family: inherit; }
 img { image-rendering: auto; }
+/* anything tappable: no 300ms double-tap wait, no long-press callout, and feedback the instant a finger
+   lands. Touch never sees :hover (every hover rule in this file is gated behind a hover-capable pointer,
+   or the first tap would leave it stuck), so :active is the press state on a phone. */
+button, a, .gcard, .cell.clickable, .tr, .qhit, .cal-day, .brk-card, .teaser, .seg span, .av, .shot, .hs, .fact.click, .gchip, .al-chip, .tk-game, .subs .sub { touch-action: manipulation; -webkit-touch-callout: none; }
+.tab, .bn, .lchip, .stab, .gchip, .lg-link, .hbtn, .track, .clear, .cal-arrow, .pick-toggle, .al-chip, .navbtn, .iconbtn, .fresh, .more, .seg span { transition: transform .12s var(--ease-out); }
+.tab:active, .bn:active, .lchip:active, .stab:active, .gchip:active, .lg-link:active, .hbtn:active, .track:active:not(:disabled), .clear:active, .cal-arrow:active:not(:disabled), .pick-toggle:active, .al-chip:active, .navbtn:active, .iconbtn:active, .fresh:active, .more:active, .seg span:active { transform: scale(.97); }
+.gcard:active, .cell.clickable:active, .tr:active:not(.h), .qhit:active, .cal-day:active, .brk-card:active, .teaser:active, .lgm-item:active { background: var(--panel2); }
 
 .widget {
-  height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+  height: 100vh; height: 100dvh;   /* dvh follows the phone's URL bar as it collapses; vh is the fallback */
+  display: flex; flex-direction: column; overflow: hidden;
   background: var(--wm) no-repeat right -90px bottom -90px / 300px, var(--bg);
   border: 1px solid var(--line);
 }
@@ -62,18 +74,18 @@ img { image-rendering: auto; }
 .tab {
   padding: 8px 14px; border: 0; cursor: pointer; background: transparent; color: var(--dim);
   font: 800 14px/1 var(--cd); text-transform: uppercase; letter-spacing: .6px;
-  display: inline-flex; align-items: center; gap: 6px; transition: color .12s, background .12s;
+  display: inline-flex; align-items: center; gap: 6px; transition: color .12s, background .12s, transform .12s var(--ease-out);
 }
-.tab:hover { color: var(--text); }
+@media (hover: hover) and (pointer: fine) { .tab:hover { color: var(--text); } }
 .tab.active { background: var(--text); color: var(--ink); }
 .vsep { width: 1px; height: 20px; background: var(--line); margin: 0 6px; }
 .iconbtn { background: transparent; border: 0; color: var(--dim); cursor: pointer; width: 26px; height: 26px; padding: 2px; display: inline-flex; align-items: center; justify-content: center; }
 .iconbtn svg { width: 20px; height: 20px; }
-.iconbtn:hover { color: var(--text); }
+@media (hover: hover) and (pointer: fine) { .iconbtn:hover { color: var(--text); } }
 .iconbtn.on { color: var(--accent); }
 #btn-pin:not(.on) { opacity: .4; }
 .navbtn { width: 30px; height: 30px; border: 1px solid var(--line); background: transparent; color: var(--dim); font-size: 11px; cursor: pointer; }
-.navbtn:hover { color: var(--text); border-color: var(--text); }
+@media (hover: hover) and (pointer: fine) { .navbtn:hover { color: var(--text); border-color: var(--text); } }
 .navbtn.off { opacity: .3; pointer-events: none; }
 .search { position: relative; }
 #q { width: 170px; height: 30px; background: var(--cell); border: 1px solid var(--line); color: var(--text); padding: 0 10px; font: 500 12px var(--disp); outline: none; border-radius: 0; }
@@ -82,15 +94,15 @@ img { image-rendering: auto; }
 #q-results { position: absolute; top: 34px; left: 0; width: 320px; background: var(--panel); border: 1px solid var(--line2); z-index: 60; box-shadow: 0 12px 30px rgba(0,0,0,.5); }
 .qhit { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--line); }
 .qhit:last-child { border-bottom: 0; }
-.qhit.sel, .qhit:hover { background: var(--panel2); }
-.qname { font: 800 15px/1 var(--cd); text-transform: uppercase; color: var(--text); }
+.qhit.sel { background: var(--panel2); } @media (hover: hover) and (pointer: fine) { .qhit:hover { background: var(--panel2); } }
+.qname { font: 800 15px/1 var(--cd); text-transform: uppercase; color: var(--text); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .qsub { margin-left: auto; font: 500 9.5px/1 var(--mono); color: var(--faint); text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; }
 .qhit .crest { width: 20px; height: 20px; }
 .fresh {
   background: transparent; border: 0; color: var(--faint); cursor: pointer; white-space: nowrap;
   font: 500 10px/1 var(--mono); height: 26px; padding: 0 6px; margin-right: 2px; letter-spacing: .4px;
 }
-.fresh:hover { color: var(--text); }
+@media (hover: hover) and (pointer: fine) { .fresh:hover { color: var(--text); } }
 .fresh.stale { color: var(--warn); }
 .round-pill {
   flex: none; white-space: nowrap; font: 800 10px/1 var(--cd); letter-spacing: 1.2px; text-transform: uppercase;
@@ -101,7 +113,8 @@ img { image-rendering: auto; }
 
 /* compact (phones, narrow windows): one row — mark, context, back, account — while Today · Leagues ·
    Bets move to the bottom bar (.bnav) */
-.compact #titlebar { height: 48px; padding-left: 10px; gap: 8px; }
+/* installed to a home screen the bar runs under the notch: pad it by the inset (0 in a browser tab) */
+.compact #titlebar { height: calc(48px + env(safe-area-inset-top, 0px)); padding-top: env(safe-area-inset-top, 0px); padding-left: 10px; gap: 8px; }
 .compact .drag { gap: 8px; }
 .compact .logo { gap: 0; }
 .compact .logo-txt, .compact .search, .compact .vsep, .compact .nav-tab, .compact .round-pill { display: none; }
@@ -111,13 +124,29 @@ img { image-rendering: auto; }
 .compact .iconbtn svg { width: 17px; height: 17px; }
 .compact .navbtn { width: 28px; height: 28px; font-size: 10px; margin-right: 2px; }
 .compact .fresh { padding: 0 4px; }
+/* phones: every small control gets a 44px-tall touch target without looking any different — an invisible
+   strip centred on it (44px or its own height, whichever is taller) catches the tap. Horizontal reach is
+   left alone: the bar's controls sit 2px apart and would steal each other's taps. The sub-tabs (.stab)
+   are not here: their row scrolls sideways, and a scroller clips the strip and gains a phantom vertical
+   scroll range instead. */
+.compact .tab, .compact .iconbtn, .compact .navbtn, .compact .fresh, .compact .lchip, .compact .gchip, .compact .al-chip, .compact .lg-link, .compact .pick-toggle, .compact .seg span, .compact .more, .compact .crumb, .compact .cal-arrow, .compact .rm { position: relative; }
+.compact .tab::after, .compact .iconbtn::after, .compact .navbtn::after, .compact .fresh::after, .compact .lchip::after, .compact .gchip::after, .compact .al-chip::after, .compact .lg-link::after, .compact .pick-toggle::after, .compact .seg span::after, .compact .more::after, .compact .crumb::after, .compact .cal-arrow::after, .compact .rm::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: max(44px, 100%); transform: translateY(-50%); }
+.compact .rm::after { left: 50%; right: auto; width: 44px; transform: translate(-50%, -50%); }   /* the slip's ✕ is 18px square */
+/* ...except chips in rows that wrap: a 44px strip on a ~25px chip reaches ~10px into the next row across a
+   4–6px gap, so a tap near the seam opened the chip in the other row. Those stretch by half their row gap
+   and no further — neighbouring strips meet at the seam, never overlap. The league switch is one row and
+   keeps the full 44px. */
+.compact .gchip::after, .compact .al-chip::after { top: -3px; height: auto; bottom: -3px; transform: none; }   /* .gamestrip, .alsolive: gap 6px */
+.compact .chips .lchip::after { top: -2px; height: auto; bottom: -2px; transform: none; }   /* .chips: gap 4px */
 
 /* ── main / body ──────────────────────────────────────────────────────────── */
 #main { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; position: relative; }
 .body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 18px 20px 26px; }
 .body.split-host { padding: 0; overflow: hidden; display: flex; }
 .compact .body { padding: 12px 12px 16px; }
-.body.swap { animation: fadein .18s ease; }
+.body.swap { animation: fadein .16s var(--ease-out); }   /* every navigation passes through this: short, and out of the way at once */
+/* the app's own scrollers keep their bounce but never hand the gesture to the page behind them */
+.body, .board-col, .rail, .bracket, .cal-strip, .stabs { overscroll-behavior: contain; }
 @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .body::-webkit-scrollbar, .board-col::-webkit-scrollbar, .rail::-webkit-scrollbar, .bracket::-webkit-scrollbar { width: 8px; height: 8px; }
 .body::-webkit-scrollbar-thumb, .board-col::-webkit-scrollbar-thumb, .rail::-webkit-scrollbar-thumb, .bracket::-webkit-scrollbar-thumb { background: var(--line2); }
@@ -140,7 +169,9 @@ img { image-rendering: auto; }
 .picks-sub.warn { color: var(--warn); }
 .compact .picks-sub { display: none; }
 .hint { font: 500 10.5px/1.4 var(--disp); color: var(--dim); margin: -2px 0 6px; }
-.disc { margin-top: 16px; font: 500 9.5px/1.5 var(--mono); color: var(--faintest); letter-spacing: .3px; }
+/* --faintest sits at 3.5:1 on the navy — fine for rules, dots and separators, under AA (4.5:1) for 9px
+   text, so the small informative lines (disclaimers, cell sub-lines, sources) use --faint (5.8:1) */
+.disc { margin-top: 16px; font: 500 9.5px/1.5 var(--mono); color: var(--faint); letter-spacing: .3px; }
 
 /* crests: square boxes, the image contained (never cropped) */
 .crest { width: 36px; height: 36px; flex: none; object-fit: contain; display: block; }
@@ -165,7 +196,7 @@ img { image-rendering: auto; }
 .kick #kick-time { color: var(--accent); font-weight: 600; }
 .facts { display: flex; gap: 22px; margin-left: auto; }
 .fact { display: flex; flex-direction: column; gap: 3px; }
-.fact.click { cursor: pointer; } .fact.click:hover .fact-v { color: var(--accent); }
+.fact.click { cursor: pointer; } @media (hover: hover) and (pointer: fine) { .fact.click:hover .fact-v { color: var(--accent); } }
 .fact-k { font: 600 10px/1 var(--mono); letter-spacing: 1px; color: var(--sub); text-transform: uppercase; }
 .fact-v { font: 800 22px/1 var(--cd); text-transform: uppercase; color: var(--text); white-space: nowrap; }
 .fact-v.book { color: var(--bet); } .fact-v.acc { color: var(--accent); } .fact-v.dim { color: var(--dim); }
@@ -185,7 +216,7 @@ img { image-rendering: auto; }
 /* game chips above the builder board */
 .gamestrip { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 18px 2px; }
 .gchip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid var(--line); background: var(--cell); cursor: pointer; font: 800 13px/1 var(--cd); text-transform: uppercase; color: var(--dim); }
-.gchip:hover { color: var(--text); border-color: var(--line3); }
+@media (hover: hover) and (pointer: fine) { .gchip:hover { color: var(--text); border-color: var(--line3); } }
 .gchip.active { background: var(--text); color: var(--ink); border-color: var(--text); }
 .gchip .n { font: 500 9px/1 var(--mono); color: var(--accent); }
 .gchip.active .n { color: var(--ink); }
@@ -216,7 +247,7 @@ img { image-rendering: auto; }
 .htop { margin-left: auto; color: var(--text); }
 .htop b { color: var(--accent); font-weight: 600; }
 .hbtn { flex: none; background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.35); padding: 7px 12px; font: 800 12px/1 var(--cd); letter-spacing: 1px; cursor: pointer; }
-.hbtn:hover { background: rgba(255,255,255,.12); }
+@media (hover: hover) and (pointer: fine) { .hbtn:hover { background: rgba(255,255,255,.12); } }
 .compact .hero-body { padding: 14px 12px 10px; gap: 10px; }
 .compact .hab { font-size: 26px; }
 .compact .hteam { gap: 8px; }
@@ -233,7 +264,7 @@ img { image-rendering: auto; }
 .gamegrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .compact .gamegrid { grid-template-columns: 1fr; gap: 6px; }
 .gcard { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--a); border-right: 3px solid var(--h); padding: 12px; cursor: pointer; transition: background .12s; }
-.gcard:hover { background: var(--panel2); }
+@media (hover: hover) and (pointer: fine) { .gcard:hover { background: var(--panel2); } }
 .compact .gcard { padding: 7px 8px; }
 .gteam { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .gteam.home { flex-direction: row-reverse; }
@@ -252,7 +283,7 @@ img { image-rendering: auto; }
 .gstake { grid-column: 1 / -1; margin-top: -2px; padding-top: 7px; border-top: 1px solid var(--line); font: 500 9.5px/1.35 var(--mono); letter-spacing: .3px; color: var(--sub); text-align: center; }
 .compact .gstake { padding-top: 5px; font-size: 9px; }
 .pick-toggle { display: inline-block; margin: 14px 0 4px; padding: 6px 10px; border: 1px solid var(--line); background: var(--cell); cursor: pointer; font: 800 12px/1 var(--cd); letter-spacing: .6px; text-transform: uppercase; color: var(--dim); }
-.pick-toggle:hover { color: var(--text); border-color: var(--line3); }
+@media (hover: hover) and (pointer: fine) { .pick-toggle:hover { color: var(--text); border-color: var(--line3); } }
 
 /* ── tickets (the card, record history) ───────────────────────────────────── */
 .card.notes { margin: 8px 0 14px; } .card.notes .gk .est { max-width: 62%; white-space: normal; }
@@ -282,6 +313,7 @@ img { image-rendering: auto; }
 .tk-num:last-child { border-right: 0; }
 .tk-num-v { font: 800 22px/1 var(--cd); color: var(--text); white-space: nowrap; }
 .compact .tk-num-v { font-size: 16px; }
+.compact .tk-nums { grid-template-columns: repeat(5, auto); }   /* "$10→$130.00" needs more than a fifth of a phone: size the cells to their numbers */
 .tk-num-v.pos { color: var(--pos); } .tk-num-v.neg { color: var(--neg); } .tk-num-v.acc { color: var(--accent); }
 .tk-num-l { margin-top: 4px; font: 600 9.5px/1 var(--mono); letter-spacing: 1.2px; text-transform: uppercase; color: var(--sub); }
 .tk-why { padding: 10px 14px 12px; font: 500 11px/1.5 var(--disp); color: var(--sub); }
@@ -308,8 +340,10 @@ img { image-rendering: auto; }
 .sv .paren { color: var(--dim); }
 .sv.good, .sv.up { color: var(--pos); } .sv.acc { color: var(--accent); } .sv.muted { color: var(--faint); } .sv.neg { color: var(--neg); }
 .sk { font: 600 10px/1 var(--mono); text-transform: uppercase; letter-spacing: 1px; color: var(--sub); margin-top: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.compact .sk { white-space: normal; line-height: 1.3; }   /* three tiles across a phone: "FADE…" said nothing */
 .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
 .col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.compact .two { grid-template-columns: 1fr; }   /* two card columns at 390px pushed the record page sideways */
 .card { background: var(--panel); border: 1px solid var(--line); padding: 12px 14px; min-width: 0; }
 .two ~ .card, .card + .card { margin-top: 12px; }
 .card-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--line2); padding-bottom: 6px; margin-bottom: 10px; }
@@ -328,7 +362,7 @@ img { image-rendering: auto; }
 .stline .k { text-align: center; font: 500 9px/1 var(--mono); letter-spacing: 1px; color: var(--faint); text-transform: uppercase; }
 .gk { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; padding: 4px 0; border-top: 1px solid var(--line); font: 500 11.5px/1.3 var(--disp); color: var(--sub); }
 .gk:first-of-type, .card-h + .gk, .label + .gk, .hint + .gk { border-top: 0; }
-.gk .est { color: var(--dim); font: 500 10.5px/1.3 var(--mono); text-align: right; flex: none; }
+.gk .est { color: var(--dim); font: 500 10.5px/1.3 var(--mono); text-align: right; flex: 0 1 auto; }   /* may wrap: flex: none ran "(n=20)" off a phone's card */
 .gk .est.up, .up { color: var(--bet); }
 .neg { color: var(--neg); }
 .bar { display: flex; height: 6px; gap: 2px; margin: 4px 0 8px; }
@@ -373,7 +407,7 @@ td.lead { color: var(--text); }
 .recs { display: flex; flex-direction: column; gap: 6px; }
 .cell { display: flex; flex-direction: column; justify-content: center; gap: 3px; min-height: 38px; padding: 5px 10px; background: var(--cell); border-left: 4px solid transparent; min-width: 0; transition: background .12s; }
 .cell.clickable { cursor: pointer; }
-.cell.clickable:hover { background: var(--panel2); }
+@media (hover: hover) and (pointer: fine) { .cell.clickable:hover { background: var(--panel2); } }
 .cell.v-bet { background: var(--panel); border-left-color: var(--bet); }
 .cell.v-lean { background: var(--panel); border-left-color: var(--accent); }
 .cell.v-fade { background: var(--panel); border-left-color: var(--fade); }
@@ -387,7 +421,7 @@ td.lead { color: var(--text); }
 .verdict { font: 800 11px/1 var(--cd); letter-spacing: .5px; text-transform: uppercase; white-space: nowrap; }
 .v-bet .verdict { color: var(--bet); } .v-lean .verdict { color: var(--accent); } .v-fade .verdict { color: var(--fade); } .v-sharp .verdict { color: var(--warn); }
 .v-pass .verdict, .cell .verdict.dim { color: var(--faint); }
-.sub { margin-left: auto; font: 500 9px/1.3 var(--mono); color: var(--faintest); flex: none; text-align: right; }
+.sub { margin-left: auto; font: 500 9px/1.3 var(--mono); color: var(--faint); flex: none; text-align: right; }
 .cell-line .sub.wrap { flex: 1 1 100%; margin-left: 0; text-align: left; white-space: normal; color: var(--dim); }
 
 /* ── builder: board + slip rail ───────────────────────────────────────────── */
@@ -403,6 +437,7 @@ td.lead { color: var(--text); }
 .slot-name { font: 800 17px/1 var(--cd); text-transform: uppercase; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .slot-prior { flex: none; font: 500 8.5px/1 var(--mono); color: var(--faint); border: 1px dashed var(--faintest); padding: 2px 4px; text-transform: uppercase; }
 .compact .colhead, .compact .brow { grid-template-columns: 1fr; gap: 4px; }
+.compact .colhead > span:not(:first-child) { display: none; }   /* one column: "Home / Draw / Away" stacked above it labelled nothing */
 .compact .board { padding: 8px 10px 14px; }
 .rail { flex: none; width: var(--rail); background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; overflow: auto; }
 .compact .split { flex-direction: column; overflow: auto; }
@@ -419,7 +454,7 @@ td.lead { color: var(--text); }
 .sleg-game { font: 500 9.5px/1 var(--mono); color: var(--faint); }
 .sleg-ml { font: 500 11px/1 var(--mono); color: var(--dim); }
 .rm { color: var(--faint); width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; background: none; border: 0; font: 600 14px/1 var(--mono); }
-.rm:hover { color: var(--neg); }
+@media (hover: hover) and (pointer: fine) { .rm:hover { color: var(--neg); } }
 .price-compare { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
 .pbox { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 6px; border-right: 1px solid var(--line); text-align: center; min-width: 0; }
 .pbox:last-child { border-right: none; }
@@ -430,7 +465,7 @@ td.lead { color: var(--text); }
 .pbox.hl .pbox-odds { color: var(--text); }
 .pbox-odds.pos { color: var(--pos); } .pbox-odds.neg { color: var(--neg); }
 .pbox-prob { font: 500 10px/1 var(--mono); color: var(--dim); }
-.pbox-sub { font: 500 9px/1.3 var(--mono); color: var(--faintest); }
+.pbox-sub { font: 500 9px/1.3 var(--mono); color: var(--faint); }
 .evline { font: 800 22px/1 var(--cd); text-transform: uppercase; padding: 14px 16px 4px; }
 .evline.pos { color: var(--pos); } .evline.neg { color: var(--neg); } .evline.flat { color: var(--dim); }
 .tax { padding: 0 16px 12px; border-bottom: 1px solid var(--line); }
@@ -441,29 +476,33 @@ td.lead { color: var(--text); }
 .warn-line { font: 500 10.5px/1.5 var(--mono); color: var(--sub); }
 .actions { display: flex; gap: 8px; padding: 14px 16px; margin-top: auto; }
 .track { flex: 1; background: var(--accent); color: var(--ink); padding: 13px; font: 800 16px/1 var(--cd); text-transform: uppercase; letter-spacing: .6px; text-align: center; border: 0; cursor: pointer; }
-.track:hover { filter: brightness(1.1); }
+@media (hover: hover) and (pointer: fine) { .track:hover { filter: brightness(1.1); } }
 .track:disabled { opacity: .35; cursor: default; filter: none; }
 .clear { background: transparent; color: var(--sub); border: 1px solid var(--line3); padding: 13px 14px; font: 800 16px/1 var(--cd); text-transform: uppercase; letter-spacing: .6px; cursor: pointer; }
-.clear:hover { color: var(--text); border-color: var(--text); }
-.rail-src { padding: 10px 16px; border-top: 1px solid var(--line); font: 500 9px/1.4 var(--mono); letter-spacing: .6px; text-transform: uppercase; color: var(--faintest); }
+@media (hover: hover) and (pointer: fine) { .clear:hover { color: var(--text); border-color: var(--text); } }
+.rail-src { padding: 10px 16px; border-top: 1px solid var(--line); font: 500 9px/1.4 var(--mono); letter-spacing: .6px; text-transform: uppercase; color: var(--faint); }
 .bld-msg { padding: 0 16px 10px; font: 600 11px/1.4 var(--mono); }
 .bld-msg.up { color: var(--bet); } .bld-msg.neg { color: var(--neg); }
 .stake-wrap { display: inline-flex; align-items: center; gap: 4px; font: 500 11px/1 var(--mono); color: var(--dim); }
 .stake { width: 54px; height: 26px; background: var(--cell); border: 1px solid var(--line); color: var(--text); font: 600 12px var(--mono); padding: 0 6px; text-align: right; outline: none; border-radius: 0; }
 .stake:focus { border-color: var(--accent); }
+/* iOS zooms the page into any input under 16px and never zooms back out */
+@media (pointer: coarse) { #q, .stake { font-size: 16px; } }
 
 /* ── table (league phase): one broadcast list, zone gutter, cut lines, last + next ───────── */
 .tbl { border: 1px solid var(--line); background: var(--panel); min-width: 0; }
 .tr { display: grid; grid-template-columns: 36px 34px minmax(0, 1fr) 36px 70px 44px 48px 150px 200px 70px; align-items: center; height: 36px; border-top: 1px solid var(--line); font: 500 12px/1 var(--mono); color: var(--sub); padding: 0 14px 0 0; position: relative; cursor: pointer; }
-.tr:hover:not(.h) { background: var(--panel2); }
+@media (hover: hover) and (pointer: fine) { .tr:hover:not(.h) { background: var(--panel2); } }
 .tr.h { height: 30px; background: var(--cell); border-top: 0; font-size: 10px; letter-spacing: .8px; text-transform: uppercase; color: var(--sub); cursor: default; }
 .tr > span { text-align: right; min-width: 0; } .tr > span:nth-child(-n+3), .tr > span.last, .tr > span.next { text-align: left; }
 .tr > span.last, .tr > span.next { padding-left: 12px; }
 .tr .rk { text-align: center; color: var(--faint); border-left: 4px solid transparent; height: 36px; display: inline-flex; align-items: center; justify-content: center; }
 .tr.h .rk { height: 30px; }
 .tr.adv .rk { border-left-color: var(--bet); color: var(--bet); } .tr.po .rk { border-left-color: var(--accent); color: var(--accent); } .tr.out .rk { border-left-color: var(--line3); }
-.tr .team { font: 800 15px/1 var(--cd); text-transform: uppercase; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: baseline; gap: 8px; }
-.tr .team .lg { font: 500 8.5px/1 var(--mono); letter-spacing: .6px; text-transform: uppercase; color: var(--faint); font-style: normal; }
+/* a block, not a flex row: text-overflow only truncates inline content, so as a flex container a long
+   name ("Northern Ireland (A-team…)") was clipped mid-letter with no ellipsis */
+.tr .team { font: 800 15px/1 var(--cd); text-transform: uppercase; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.tr .team .lg { font: 500 8.5px/1 var(--mono); letter-spacing: .6px; text-transform: uppercase; color: var(--faint); font-style: normal; margin-left: 8px; }
 .tr .pts { color: var(--text); font-weight: 600; }
 .tr .zone { font: 800 9.5px/1 var(--cd); letter-spacing: 1px; text-transform: uppercase; }
 .tr.adv .zone { color: var(--bet); } .tr.po .zone { color: var(--accent); } .tr.out .zone { color: var(--faintest); }
@@ -502,7 +541,7 @@ td.lead { color: var(--text); }
 .brk-card.fed::before { content: ""; position: absolute; left: -7px; top: 50%; width: 7px; border-top: 1px solid var(--line3); }
 .brk-pair.linked:has(.brk-card.mine)::after, .brk-card.fed.mine::before { border-color: var(--gold-dim); }
 .brk-card { background: var(--panel); border: 1px solid var(--line); padding: 5px 7px 4px; cursor: pointer; font-size: 11px; transition: background .12s; }
-.brk-card:hover { background: var(--panel2); }
+@media (hover: hover) and (pointer: fine) { .brk-card:hover { background: var(--panel2); } }
 .brk-card.islive { border-color: color-mix(in srgb, var(--bet) 50%, transparent); }
 .brk-card.mine { border-color: var(--gold-dim); }
 .brk-card.champ { border-color: color-mix(in srgb, var(--gold) 65%, transparent); box-shadow: 0 0 9px color-mix(in srgb, var(--gold) 25%, transparent); }
@@ -535,7 +574,7 @@ td.lead { color: var(--text); }
 .al-lbl { display: inline-flex; align-items: center; gap: 5px; font: 500 9px/1 var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--bet); }
 .al-lbl .dot { width: 6px; height: 6px; }
 .al-chip { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; white-space: nowrap; background: var(--cell); border: 1px solid var(--line); color: var(--sub); font: 800 12px/1 var(--cd); text-transform: uppercase; padding: 4px 8px; }
-.al-chip:hover { border-color: var(--line3); color: var(--text); }
+@media (hover: hover) and (pointer: fine) { .al-chip:hover { border-color: var(--line3); color: var(--text); } }
 .al-chip .crest { width: 14px; height: 14px; }
 .al-chip .al-min { color: var(--bet); font: 600 9.5px/1 var(--mono); }
 
@@ -548,6 +587,7 @@ td.lead { color: var(--text); }
 
 @media (prefers-reduced-motion: reduce) {
   .matchup .sc.bump, .body.swap, .dot, .kick .dot, .champs, .spinner { animation: none; }
+  .av { transition: none; }   /* a pinned player's headshot still grows, it just doesn't travel */
 }
 
 /* ── pitch card: headshots in formation, one popover, layers ──────────────────────────────── */
@@ -556,7 +596,7 @@ td.lead { color: var(--text); }
 .card-hl .card-s { text-align: left; }
 .seg { display: inline-flex; border: 1px solid var(--line2); }
 .seg span { padding: 5px 10px; font: 800 11px/1 var(--cd); text-transform: uppercase; letter-spacing: .6px; color: var(--dim); cursor: pointer; }
-.seg span:hover { color: var(--text); } .seg span.on { background: var(--text); color: var(--ink); }
+@media (hover: hover) and (pointer: fine) { .seg span:hover { color: var(--text); } } .seg span.on { background: var(--text); color: var(--ink); }
 .pitchwrap { position: relative; width: 100%; aspect-ratio: 2.25 / 1; background: #0b1a3a; border: 1px solid var(--line2); }
 .pitchwrap .lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .pitchwrap .lines rect, .pitchwrap .lines line, .pitchwrap .lines circle, .pitchwrap .lines path { fill: none; stroke: rgba(180,200,255,.28); stroke-width: .35; vector-effect: non-scaling-stroke; }
@@ -565,10 +605,10 @@ td.lead { color: var(--text); }
 .nolu { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); font: 500 10px/1.5 var(--mono); letter-spacing: .5px; text-transform: uppercase; color: var(--faint); text-align: center; }
 /* players: avatar + number + surname; everything else lives in the popover */
 .pl { position: absolute; width: 0; height: 0; z-index: 3; }
-.pl:hover, .pl.pinned { z-index: 20; }
-.av { position: relative; width: 46px; height: 46px; border-radius: 50%; border: 2.5px solid var(--line3); background: var(--panel); cursor: pointer; box-shadow: 0 3px 10px rgba(0,0,0,.5); transition: transform .12s; flex: none; }
+.pl.pinned { z-index: 20; } @media (hover: hover) and (pointer: fine) { .pl:hover { z-index: 20; } }
+.av { position: relative; width: 46px; height: 46px; border-radius: 50%; border: 2.5px solid var(--line3); background: var(--panel); cursor: pointer; box-shadow: 0 3px 10px rgba(0,0,0,.5); transition: transform .12s var(--ease-out); flex: none; }
 .pl .av { position: absolute; left: -23px; top: -23px; }
-.pl:hover .av, .pl.pinned .av { transform: scale(1.12); }
+.pl.pinned .av { transform: scale(1.12); } @media (hover: hover) and (pointer: fine) { .pl:hover .av { transform: scale(1.12); } }
 .av img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
 .av .ini { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 800 15px/1 var(--cd); color: var(--sub); }
 .av.sm { width: 32px; height: 32px; border-width: 2px; box-shadow: none; } .av.sm .ini { font-size: 11px; }
@@ -609,13 +649,13 @@ td.lead { color: var(--text); }
 .hs.goal::before { border-radius: 3px; width: 14px; height: 40px; left: -7px; top: -20px; }
 .hs.centre::before { width: 26px; height: 26px; left: -13px; top: -13px; background: transparent; border-style: dashed; }
 .hs.box { background: transparent; border: 1px solid transparent; transition: background .12s, border-color .12s; }
-.hs:hover::before, .hs.pinned::before { background: rgba(79,141,255,.45); }
-.hs.box:hover, .hs.box.pinned { background: rgba(79,141,255,.14); border-color: rgba(79,141,255,.6); }
+.hs.pinned::before { background: rgba(79,141,255,.45); } @media (hover: hover) and (pointer: fine) { .hs:hover::before { background: rgba(79,141,255,.45); } }
+.hs.box.pinned { background: rgba(79,141,255,.14); border-color: rgba(79,141,255,.6); } @media (hover: hover) and (pointer: fine) { .hs.box:hover { background: rgba(79,141,255,.14); border-color: rgba(79,141,255,.6); } }
 /* shots layer */
 .shot { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); opacity: .85; border: 1px solid rgba(7,11,31,.9); z-index: 4; cursor: pointer; }
 .shot.home { background: var(--home); } .shot.away { background: var(--away); }
 .shot.blk { opacity: .4; } .shot.goal { border: 2.5px solid var(--warn); box-shadow: 0 0 0 2px rgba(7,11,31,.9); }
-.shot:hover, .shot.pinned { opacity: 1; border-color: #fff; z-index: 21; }
+.shot.pinned { opacity: 1; border-color: #fff; z-index: 21; } @media (hover: hover) and (pointer: fine) { .shot:hover { opacity: 1; border-color: #fff; z-index: 21; } }
 .pitchwrap.l-lineups .shot { display: none; }
 .pitchwrap.l-shots .pl { opacity: .28; pointer-events: none; }
 .pitchwrap.l-shots .hs { display: none; }
@@ -624,7 +664,7 @@ td.lead { color: var(--text); }
 .pitchwrap.focus .shot:not(.mine) { opacity: .12; }
 .pitchwrap.focus .pl:not(.pinned) { opacity: .45; }
 /* benches */
-.benches { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 12px; }
+.benches { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; margin-top: 12px; }
 .bench.away .bh { flex-direction: row-reverse; text-align: right; } .bench.away .subs { justify-content: flex-end; }
 .bh { display: flex; align-items: baseline; gap: 12px; font: 500 10px/1 var(--mono); color: var(--faint); text-transform: uppercase; letter-spacing: .5px; }
 .bt { font: 800 14px/1 var(--cd); color: var(--sub); } .bt em { font-style: normal; color: #fff; }
@@ -673,10 +713,13 @@ td.lead { color: var(--text); }
 .ptr.pred { grid-template-columns: minmax(0, 1.3fr) 64px 72px minmax(0, .9fr) minmax(0, .9fr) minmax(0, .9fr) minmax(0, 1.6fr) 110px; }
 .tev.scorers { display: flex; flex-wrap: wrap; gap: 3px 8px; white-space: normal; } .tev.scorers .sc.hit { color: var(--bet); } .tev.scorers .sc.miss { color: var(--neg); }
 .ptr.pred.pending { opacity: .6; }
+/* eight columns don't fit a phone: the scorecard scrolls sideways there rather than overprinting itself */
+.compact .predrows { overflow-x: auto; overscroll-behavior-x: contain; }
+.compact .ptr.pred { min-width: 720px; }
 .ptr.pred .tn { font: 800 13px/1 var(--cd); } .ptr.pred .tn .tk-game { color: var(--text); }
 .pm { font: 800 12px/1 var(--mono); } .pm.hit { color: var(--bet); } .pm.miss { color: var(--neg); }
 .market { display: grid; gap: 12px; margin-bottom: 12px; align-items: start; }
-.market.c3 { grid-template-columns: 1.1fr 1.3fr 1fr; } .market.c2 { grid-template-columns: 1fr 1fr; } .market.c1 { grid-template-columns: 1fr; }
+.market.c3 { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(0, 1fr); } .market.c2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .market.c1 { grid-template-columns: 1fr; }
 .odds3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
 .ob { background: var(--cell); padding: 10px 8px; text-align: center; min-width: 0; }
 .ob b { display: block; font: 800 20px/1 var(--cd); color: #fff; } .ob i { display: block; font: 500 8.5px/1 var(--mono); letter-spacing: .8px; text-transform: uppercase; color: var(--faint); margin-top: 4px; font-style: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -701,16 +744,16 @@ td.lead { color: var(--text); }
 /* ── matchday calendar: a day strip across every competition, then the chosen day's games ──── */
 .cal { display: flex; align-items: stretch; gap: 6px; margin: 16px 0 4px; }
 .cal-arrow { flex: none; width: 30px; background: var(--cell); border: 1px solid var(--line); color: var(--sub); font: 800 12px/1 var(--cd); cursor: pointer; }
-.cal-arrow:hover:not(:disabled) { color: var(--text); border-color: var(--line3); }
+@media (hover: hover) and (pointer: fine) { .cal-arrow:hover:not(:disabled) { color: var(--text); border-color: var(--line3); } }
 .cal-arrow:disabled { opacity: .35; cursor: default; }
 .cal-strip { position: relative; flex: 1; min-width: 0; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
 .cal-strip::-webkit-scrollbar { display: none; }
 .cal-day { flex: none; width: 60px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 7px 0 6px; background: var(--panel); border: 1px solid var(--line); cursor: pointer; }
-.cal-day:hover { background: var(--panel2); }
+@media (hover: hover) and (pointer: fine) { .cal-day:hover { background: var(--panel2); } }
 .cal-dow { font: 500 9px/1 var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--faint); }
 .cal-num { font: 800 21px/1 var(--cd); color: var(--text); }
 .cal-mon { font: 500 8px/1 var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--accent); min-height: 8px; }
-.cal-lgs { display: flex; gap: 2px; min-height: 11px; }
+.cal-lgs { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; min-height: 11px; max-width: 100%; }   /* three leagues on a Saturday overran the 60px chip */
 .cal-lgs i { font: 600 7.5px/11px var(--mono); font-style: normal; padding: 0 3px; background: var(--line2); color: var(--sub); letter-spacing: .3px; }
 .cal-lgs i.lg-ucl { background: color-mix(in srgb, var(--star) 22%, var(--line2)); color: var(--star); }
 .cal-day.empty { opacity: .45; }
@@ -736,12 +779,12 @@ button.more, button.lg-name, button.crumb, button.teaser { font-family: inherit;
 .today-head + .lgsec { margin-top: 0; }
 .lg-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; padding: 8px 8px 8px 12px; background: linear-gradient(90deg, color-mix(in srgb, var(--lg) 14%, var(--panel)), var(--panel) 55%); border: 1px solid var(--line); border-left: 4px solid var(--lg); }
 .lg-name { background: none; border: 0; padding: 0; cursor: pointer; font: 800 18px/1 var(--cd); letter-spacing: .4px; text-transform: uppercase; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.lg-name:hover { color: var(--lg); }
+@media (hover: hover) and (pointer: fine) { .lg-name:hover { color: var(--lg); } }
 .lg-count { flex: none; font: 500 10px/1 var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--dim); }
 .lg-link { flex: none; margin-left: auto; padding: 6px 10px; background: transparent; border: 1px solid var(--line2); color: var(--sub); cursor: pointer; font: 800 12px/1 var(--cd); letter-spacing: .8px; text-transform: uppercase; }
-.lg-link:hover { color: var(--text); border-color: var(--lg); }
+@media (hover: hover) and (pointer: fine) { .lg-link:hover { color: var(--text); border-color: var(--lg); } }
 .teaser { display: flex; align-items: center; gap: 14px; width: 100%; margin-top: 20px; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent); color: var(--text); cursor: pointer; text-align: left; }
-.teaser:hover { background: var(--panel2); }
+@media (hover: hover) and (pointer: fine) { .teaser:hover { background: var(--panel2); } }
 .teaser-t { font: 800 16px/1 var(--cd); text-transform: uppercase; }
 .teaser-go { margin-left: auto; font: 800 12px/1 var(--cd); letter-spacing: 1px; text-transform: uppercase; color: var(--accent); }
 .compact .lgsec { margin-top: 14px; }
@@ -760,22 +803,25 @@ button.more, button.lg-name, button.crumb, button.teaser { font-family: inherit;
 .lswitch { margin-left: auto; display: flex; gap: 4px; flex: none; }
 .chips { display: flex; gap: 4px; flex-wrap: wrap; margin: 0 0 14px; }
 .lchip { padding: 8px 12px; border: 1px solid var(--line); background: var(--cell); color: var(--dim); cursor: pointer; font: 800 13px/1 var(--cd); letter-spacing: .6px; text-transform: uppercase; }
-.lchip:hover { color: var(--text); border-color: var(--lg, var(--line3)); }
+@media (hover: hover) and (pointer: fine) { .lchip:hover { color: var(--text); border-color: var(--lg, var(--line3)); } }
 .lchip.on { background: var(--text); border-color: var(--text); color: var(--ink); box-shadow: inset 0 -3px 0 var(--lg, var(--text)); }
-.stabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.stabs { display: flex; gap: 2px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
 .stabs::-webkit-scrollbar { display: none; }
 .stab { flex: none; padding: 10px 16px 9px; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--dim); cursor: pointer; font: 800 14px/1 var(--cd); letter-spacing: .8px; text-transform: uppercase; }
-.stab:hover { color: var(--text); }
+@media (hover: hover) and (pointer: fine) { .stab:hover { color: var(--text); } }
 .stab.on { color: var(--text); border-bottom-color: var(--lg, var(--accent)); }
 .hub.crumb-hub { padding: 9px 20px; }
 .crumbs { display: flex; align-items: center; gap: 8px; min-width: 0; font: 500 10.5px/1 var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--faint); }
 .crumb { display: inline-flex; align-items: center; gap: 8px; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--accent); white-space: nowrap; }
-.crumb:hover { color: var(--text); }
+@media (hover: hover) and (pointer: fine) { .crumb:hover { color: var(--text); } }
 .crumb .lbadge { padding: 3px 5px; font-size: 10px; }
 .crumb-sep { color: var(--faintest); }
 .crumb-here { color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .compact .hub { padding: 10px 12px 0; }
-.compact .hub.crumb-hub { padding: 7px 12px; }
+/* the bar is as tall as the crumbs' 44px touch strip, so the strip can't hang over the lower third's stats
+   or the first card and swallow their taps; the clip is the backstop. 45px = 44 inside the 1px border
+   (border-box), so the clip never trims the strip */
+.compact .hub.crumb-hub { padding: 0 12px; min-height: 45px; display: flex; align-items: center; overflow: hidden; }
 .compact .lhead { gap: 10px; margin-bottom: 8px; }
 .compact .lbadge.big { min-width: 36px; height: 36px; font-size: 12px; }
 .compact .lhead-t { font-size: 21px; }
@@ -791,7 +837,7 @@ button.more, button.lg-name, button.crumb, button.teaser { font-family: inherit;
 .compact .ov { grid-template-columns: 1fr; }
 .compact .ov .gamegrid { grid-template-columns: 1fr; }
 .more { display: inline-block; margin-top: 10px; padding: 0; background: none; border: 0; cursor: pointer; font: 800 12px/1 var(--cd); letter-spacing: 1px; text-transform: uppercase; color: var(--accent); }
-.more:hover { color: var(--text); }
+@media (hover: hover) and (pointer: fine) { .more:hover { color: var(--text); } }
 .card-h .more { margin-top: 0; }
 .tbl.mini .tr { grid-template-columns: 30px 28px minmax(0, 1fr) 34px 44px 44px; }
 .cut.gap { justify-content: center; padding: 0; letter-spacing: 3px; }
@@ -812,16 +858,17 @@ button.more, button.lg-name, button.crumb, button.teaser { font-family: inherit;
 .lg-menu { position: fixed; z-index: 70; width: 360px; background: var(--panel); border: 1px solid var(--line2); box-shadow: 0 14px 34px rgba(0,0,0,.55); }
 .lgm-h { padding: 10px 14px; font: 500 9.5px/1 var(--mono); letter-spacing: 1.4px; text-transform: uppercase; color: var(--accent); }
 .lgm-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 58px; padding: 10px 14px; background: none; border: 0; border-top: 1px solid var(--line); color: var(--text); cursor: pointer; text-align: left; font-family: inherit; }
-.lgm-item:hover, .lgm-item.on { background: var(--panel2); }
+.lgm-item.on { background: var(--panel2); } @media (hover: hover) and (pointer: fine) { .lgm-item:hover { background: var(--panel2); } }
 .lgm-item .lbadge { min-width: 44px; height: 30px; }
 .lgm-txt { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .lgm-name { font: 800 17px/1 var(--cd); text-transform: uppercase; }
 .lgm-sub { font: 500 9.5px/1.3 var(--mono); letter-spacing: .5px; text-transform: uppercase; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lgm-sub.live { color: var(--bet); }
-.compact .lg-menu { left: 0; right: 0; bottom: 64px; width: auto; border-left: 0; border-right: 0; }
+.compact .lg-menu { left: 0; right: 0; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); width: auto; border-left: 0; border-right: 0; }
 
 /* the bottom bar (compact only) */
-.bnav { display: none; flex: none; height: 64px; background: var(--panel); border-top: 1px solid var(--line2); padding-bottom: env(safe-area-inset-bottom, 0px); }
+/* the home-indicator inset adds to the bar's height: inside a fixed 64px it was squeezing the icons */
+.bnav { display: none; flex: none; height: calc(64px + env(safe-area-inset-bottom, 0px)); background: var(--panel); border-top: 1px solid var(--line2); padding-bottom: env(safe-area-inset-bottom, 0px); }
 .compact .bnav { display: flex; }
 .bn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; background: none; border: 0; color: var(--dim); cursor: pointer; font: 800 11px/1 var(--cd); letter-spacing: .8px; text-transform: uppercase; }
 .bn svg { width: 22px; height: 22px; }

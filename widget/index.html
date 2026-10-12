@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#070b1f" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self';" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -24,7 +25,7 @@
       </div>
       <div class="controls">
         <button id="fresh" class="fresh" title="Click to refresh now" hidden></button>
-        <div class="search"><input id="q" type="text" placeholder="Search team   /" autocomplete="off" spellcheck="false" /><div id="q-results" hidden></div></div>
+        <div class="search"><input id="q" type="text" placeholder="Search team   /" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search" /><div id="q-results" hidden></div></div>
         <button id="back" class="navbtn off" title="Back (Esc)">&#9664;</button>
         <button id="tab-today" class="tab nav-tab" title="Every league's games, by day">Today</button>
         <button id="tab-leagues" class="tab nav-tab" title="A league: overview, table, fixtures, builder" aria-haspopup="menu"><span class="lbl">Leagues</span><svg class="caret" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.8"/></svg></button>

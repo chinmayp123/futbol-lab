@@ -1801,7 +1801,7 @@ function renderBuilder(data, code) {
   const rail = h("aside", { class: "rail" });
   const nGames = new Set(selected.map((l) => l.game)).size;
   const stakeIn = h("input", { class: "stake" });
-  stakeIn.type = "number"; stakeIn.min = "1"; stakeIn.step = "1"; stakeIn.value = String(builderStake);
+  stakeIn.type = "number"; stakeIn.min = "1"; stakeIn.step = "1"; stakeIn.inputMode = "numeric"; stakeIn.value = String(builderStake);   /* whole dollars: the phone's number pad, not the full keyboard */
   stakeIn.addEventListener("change", () => { builderStake = Math.max(1, Number(stakeIn.value) || 10); render(); });
   rail.appendChild(h("div", { class: "rail-head" }, [
     h("div", {}, [h("div", { class: "rail-title", text: "Your slip" }), h("div", { class: "rail-sub", text: selected.length ? `${selected.length} leg${selected.length === 1 ? "" : "s"} · ${nGames === 1 ? "same game" : `${nGames} games`}` : "empty" })]),
