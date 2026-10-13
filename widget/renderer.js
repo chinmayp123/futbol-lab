@@ -1881,7 +1881,11 @@ function renderBuilder(data, code) {
   const trackBtn = h("button", { class: "track", text: `Track · $${builderStake}`, onclick: () => trackSlip(selected, data.date, code) });
   trackBtn.disabled = !selected.length || selected.some((l) => l.fair);
   rail.appendChild(h("div", { class: "actions" }, [trackBtn, h("button", { class: "clear", text: "Clear", onclick: () => { builderSel.clear(); builderMsg = null; render(); } })]));
-  rail.appendChild(h("div", { class: "rail-src", text: `${data.date} · ${data.source === "live" ? "priced just now" : "priced with the 10:00 card"} · FanDuel · OddsPapi · FotMob` }));
+  // a board priced on demand has no odds keys, so it carries fewer markets (no line-shop, no
+  // Draw-no-bet / handicap / team totals) and its edges can differ from the card's — say so
+  rail.appendChild(h("div", { class: "rail-src", text: data.source === "live"
+    ? `${data.date} · priced just now · FanDuel + Action Network only, no line-shop · xG FotMob`
+    : `${data.date} · priced with the 10:00 card · FanDuel · OddsPapi · xG FotMob` }));
   wrap.appendChild(rail);
   return wrap;
 }
