@@ -276,7 +276,10 @@ window.wc = {
   // demand by the live function — the publisher only writes it with the 10:00 card, and GitHub runs
   // that job a handful of times a day, so the board was usually missing or a day old
   getParlayMenu: async (code) => {
-    const stillToPlay = (id) => rows().some((m) => String(m.id) === String(id) && m.state === "pre");
+    // "still to play" has to mean the kickoff is ahead of us, not just that the published row says
+    // "pre" — that row can be hours old, which is how the builder ended up offering pre-match prices
+    // on games that had already started
+    const stillToPlay = (id) => rows().some((m) => String(m.id) === String(id) && m.state === "pre" && Date.parse(m.date) > Date.now());
     const pub = await publicView(code, "menu", "the builder is published with the 10:00 card");
     const live = (pub?.games || []).filter((g) => stillToPlay(g.id));
     if (live.length) return { ...pub, games: live, source: "published" };
