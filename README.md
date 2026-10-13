@@ -59,10 +59,20 @@ would be public), so it runs elsewhere, all on free tiers:
   closing prices. It writes to **Firestore** (project `champions-league-a650f`, one subtree
   per competition, locked down by `firestore.rules`).
 - **Vercel** (`api/live/<competition>.mjs`) builds a fresh match view on demand for a game
-  that's live or about to be, since GitHub starts cron runs late.
+  that's live or about to be (`?q=<espn id>`), and a fresh slate (`?slate=1`) for the day's
+  scores. GitHub skips most of the 5-minute schedule — measured over 33 days it ran about
+  every four hours — so while anything is live the page polls the slate itself and lays those
+  scores over the published ones. Without it a game that kicked off an hour ago still read
+  "not started" on Today.
 - **`web/build.mjs`** assembles the site from `widget/renderer.js`, `style.css` and
   `index.html`; `web/wc.js` stands in for the Electron bridge. Pages builds it on push;
   Vercel builds it on `vercel deploy --prod`.
+
+**Install it as an app.** The site ships a web manifest and a service worker, so Chrome (desktop
+and Android) offers *Install app* — an **Install** button appears in the title bar as soon as the
+browser says it is installable, and the installed app opens in its own window, works offline for
+what it has already cached, and keeps its own icon. **Get app** is the separate Windows/macOS
+desktop build.
 
 The owner signs in with Google, and the account is enrolled once with
 `node publisher/add-owner.mjs <uid>` (Bets › Record shows the uid). Full detail in
@@ -148,7 +158,8 @@ and closing-line value per leg.
 ### Getting around
 `◀` / `Esc` / `Alt+←` and the browser's back button walk the same history; a sub-tab, a day
 or a filter replaces the page rather than stacking up. `/` focuses search — a club or a
-fixture opens that match. `⤢` toggles compact mode (phones start in it): one title-bar row,
+fixture opens that match. Scores refresh every 45 s while anything is live (and the freshness chip
+forces it). `⤢` toggles compact mode (phones start in it): one title-bar row,
 the bottom bar, single-column cards; the native caption buttons mean Windows 11 Snap Layouts
 works in the desktop app. Refresh is every 30 s on a live match, backing off to 2 minutes at
 halftime.

@@ -73,14 +73,26 @@ async function fetchSoccerEvents() {
 }
 
 const _mktCache = new Map(); // eventId -> { at, markets }
+// WHICH TABS: event-page used to return every market. By 2026-10-13 a request without `tab` returns
+// only two (WIN-DRAW-WIN and PENALTY_AWARDED?) — which is why corners, BTTS and props all went quiet
+// and looked like "FanDuel posts markets late". `popular` carries BTTS, totals, anytime scorer and
+// the player shots-on-target ladder; `corners` carries the corner lines. Tab SLUGS work; the numeric
+// tab ids in layout.tabs do not.
+const TABS = ["popular", "corners"];
 async function eventMarkets(eventId) {
   const now = Date.now();
   const hit = _mktCache.get(eventId);
   if (hit && now - hit.at < 120000) return hit.markets;
-  const r = await fetch(`${BASE}/event-page?eventId=${eventId}&_ak=${AK}&timezone=America/New_York`, { headers: H });
-  if (!r.ok) throw new Error(`FanDuel event-page HTTP ${r.status}`);
-  const j = await r.json();
-  const markets = Object.values(j.attachments?.markets || {});
+  const byId = new Map();
+  for (const tab of TABS) {
+    try {
+      const r = await fetch(`${BASE}/event-page?eventId=${eventId}&_ak=${AK}&timezone=America/New_York&tab=${tab}`, { headers: H });
+      if (!r.ok) continue;
+      const j = await r.json();
+      for (const [id, m] of Object.entries(j.attachments?.markets || {})) if (m) byId.set(m.marketId ?? id, m);
+    } catch { /* one tab missing is not a reason to lose the others */ }
+  }
+  const markets = [...byId.values()];
   _mktCache.set(eventId, { at: now, markets });
   return markets;
 }
@@ -105,19 +117,30 @@ export async function fanduelCorners(home, away) {
   try {
     const markets = await matchMarkets(home, away);
     if (!markets) return null;
-    const isCorner = (m, strict) => {
+    // FanDuel posts the whole ladder (Total Corners 4.5 … 15.5) alongside home/away totals and
+    // novelty corner markets, and leaves `handicap` at 0 — the line lives in the runner name
+    // ("Over 10.5 Corners"). Take the MAIN line: of the full-match two-way totals, the one priced
+    // closest to even money, which is the number the book is really hanging.
+    const num = (s) => { const m = /(\d+(?:\.\d+)?)/.exec(s || ""); return m ? Number(m[1]) : null; };
+    const cands = [];
+    for (const m of markets) {
       const t = `${m.marketType || ""} ${m.marketName || ""}`.toLowerCase();
-      if (!t.includes("corner") || !(m.runners || []).some((r) => /over/i.test(r.runnerName))) return false;
-      if (strict) return t.includes("total") && !t.includes("team") && !t.includes("alternate");
-      return true;
-    };
-    const corner = markets.find((m) => isCorner(m, true)) || markets.find((m) => isCorner(m, false));
-    if (!corner) return null;
-    const over = (corner.runners || []).find((r) => /over/i.test(r.runnerName));
-    const under = (corner.runners || []).find((r) => /under/i.test(r.runnerName));
-    const line = over?.handicap ?? under?.handicap ?? corner.handicap ?? null;
-    if (line == null) return null;
-    return { line, over: american(over), under: american(under), source: "fanduel" };
+      if (!t.includes("corner")) continue;
+      if (/home|away|team|race|each half|first|1st|2nd|half|card|booking|player/.test(t)) continue;
+      const runners = m.runners || [];
+      if (runners.length !== 2) continue; // "Number of Corners" and friends list many outcomes
+      const over = runners.find((r) => /over/i.test(r.runnerName || ""));
+      const under = runners.find((r) => /under/i.test(r.runnerName || ""));
+      const o = american(over);
+      const line = num(over?.runnerName) ?? num(m.marketType);
+      if (!over || o == null || line == null) continue;
+      const p = ml2prob(o);
+      cands.push({ line, over: o, under: american(under), balance: Math.abs((p == null ? 0.5 : p) - 0.5) });
+    }
+    if (!cands.length) return null;
+    cands.sort((a, b) => a.balance - b.balance);
+    const best = cands[0];
+    return { line: best.line, over: best.over, under: best.under, source: "fanduel" };
   } catch {
     return null;
   }
@@ -170,49 +193,47 @@ export async function fanduelProps(home, away) {
   try {
     const markets = await matchMarkets(home, away);
     if (!markets) return null;
+    // ANYTIME SCORER is marketType TO_SCORE ("Anytime Goalscorer"). Everything else that mentions
+    // scoring is a different bet — TO_SCORE_OR_ASSIST, TO_SCORE_2_OR_MORE_GOALS, TO_SCORE_A_HAT-TRICK,
+    // FIRST/SECOND/LAST_GOAL_SCORER — and must never be read as an anytime price.
     const scorers = [];
-    const sotByPlayer = new Map(); // player -> { player, line, over, under }
     for (const m of markets) {
-      const mt = `${m.marketType || ""} ${m.marketName || ""}`.toLowerCase();
-      const runners = m.runners || [];
-      const isScorer = (mt.includes("goalscorer") || mt.includes("to score") || mt.includes("anytime scorer"))
-        && !mt.includes("first") && !mt.includes("last") && !mt.includes("hat") && !mt.includes("brace");
-      const isSot = mt.includes("shot") && mt.includes("target");
-      if (isScorer) {
-        for (const r of runners) {
-          const name = r.runnerName;
-          if (!name || ouSide(name) || /\byes\b|\bno\b/i.test(name)) continue; // runners are players
-          const ml = american(r);
-          if (ml != null) scorers.push({ player: name, ml, implied: ml2prob(ml) });
-        }
-      } else if (isSot) {
-        // player may be on the market name (runners = Over/Under) or be the runner name itself
-        const namedOnMarket = m.marketName && /[a-z]/i.test(m.marketName) && runners.some((r) => ouSide(r.runnerName));
-        for (const r of runners) {
-          const side = ouSide(r.runnerName);
-          const player = namedOnMarket ? m.marketName.replace(/shots?\s*on\s*target.*/i, "").replace(/[-–|].*/, "").trim() : (side ? null : r.runnerName);
-          const key = player || m.marketName;
-          if (!key) continue;
-          const rec = sotByPlayer.get(key) || { player: key.replace(/\s*o\/?u.*/i, "").trim(), line: r.handicap ?? null, over: null, under: null };
-          if (rec.line == null && r.handicap != null) rec.line = r.handicap;
-          if (side === "over") rec.over = american(r);
-          else if (side === "under") rec.under = american(r);
-          sotByPlayer.set(key, rec);
-        }
+      const type = (m.marketType || "").toUpperCase();
+      const name = (m.marketName || "").toLowerCase();
+      if (type !== "TO_SCORE" && name !== "anytime goalscorer") continue;
+      for (const r of m.runners || []) {
+        const player = r.runnerName;
+        if (!player || ouSide(player) || /yes|no/i.test(player)) continue;
+        const ml = american(r);
+        if (ml != null) scorers.push({ player, ml, implied: ml2prob(ml) });
       }
     }
-    const sot = [...sotByPlayer.values()]
-      .filter((s) => s.over != null && s.line != null)
-      .map((s) => {
-        const po = ml2prob(s.over), pu = ml2prob(s.under);
-        const fairOver = po != null && pu != null ? po / (po + pu) : po; // de-vig FanDuel's own 2-way
-        return { player: s.player, line: s.line, over: s.over, under: s.under, fairOver };
-      });
-    // dedupe scorers (keep shortest price string per player), sort by implied prob
+    // SHOTS ON TARGET: FanDuel posts a one-sided ladder per player — PLAYER_TO_HAVE_1_OR_MORE…,
+    // 2_OR_MORE…, 3_OR_MORE… — not a two-way over/under, so there is NO second side to de-vig
+    // against. Take the lowest rung as the line (1+ -> over 0.5) and carry the vigged implied
+    // probability with fairOver left null, so the view can say the vig is still in it rather than
+    // dress a single-book price up as a fair one.
+    const sotByPlayer = new Map();
+    for (const m of markets) {
+      const type = (m.marketType || "").toUpperCase();
+      const rung = /^PLAYER_TO_HAVE_(\d+)_OR_MORE_SHOTS_ON_TARGET$/.exec(type);
+      if (!rung) continue; // the _IN_1ST_HALF variants fail this on purpose
+      const n = Number(rung[1]);
+      for (const r of m.runners || []) {
+        const player = r.runnerName;
+        const ml = american(r);
+        if (!player || ml == null) continue;
+        const prev = sotByPlayer.get(player);
+        if (prev && prev.n <= n) continue;
+        sotByPlayer.set(player, { player, n, line: n - 0.5, over: ml, under: null, fairOver: null, implied: ml2prob(ml) });
+      }
+    }
+    const sot = [...sotByPlayer.values()].map(({ n, ...rest }) => rest);
+    // dedupe scorers (keep the shortest price per player), sort by implied prob
     const byPlayer = new Map();
-    for (const s of scorers) if (!byPlayer.has(s.player) || (s.implied ?? 0) > (byPlayer.get(s.player).implied ?? 0)) byPlayer.set(s.player, s);
+    for (const x of scorers) if (!byPlayer.has(x.player) || (x.implied ?? 0) > (byPlayer.get(x.player).implied ?? 0)) byPlayer.set(x.player, x);
     const scorersOut = [...byPlayer.values()].sort((a, b) => (b.implied ?? 0) - (a.implied ?? 0)).slice(0, 6);
-    sot.sort((a, b) => (b.fairOver ?? 0) - (a.fairOver ?? 0));
+    sot.sort((a, b) => (b.implied ?? 0) - (a.implied ?? 0));
     if (!scorersOut.length && !sot.length) return null;
     return { scorers: scorersOut, sot: sot.slice(0, 6), source: "fanduel" };
   } catch {

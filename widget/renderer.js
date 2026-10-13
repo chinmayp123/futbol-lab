@@ -1063,8 +1063,14 @@ function renderMatch(m) {
         for (const s of pp.scorers.slice(0, 5)) blocks.push(h("div", { class: "gk" }, [h("span", { text: `${s.player} · ${s.prob != null ? `${Math.round(s.prob * 100)}% devig` : `${Math.round((s.price.implied || 0) * 100)}%`}` }), priceEl(s.price)]));
       }
       if (pp.sot.length) {
-        blocks.push(h("div", { class: "label", text: "Shots on target · FanDuel · de-vigged" }));
-        for (const s of pp.sot.slice(0, 5)) blocks.push(h("div", { class: "gk" }, [h("span", { text: `${s.player} O${s.line} · ${Math.round(s.fairOver * 100)}%` }), priceEl(s.price)]));
+        // The Odds API gives a two-sided market we can de-vig; FanDuel posts a one-sided "N or more"
+        // ladder, so there the percentage still has the vig in it and the label has to say so.
+        const devigged = pp.sot.some((s) => s.fairOver != null);
+        blocks.push(h("div", { class: "label", text: `Shots on target · ${devigged ? "FanDuel · de-vigged" : "FanDuel · single book, vig in"}` }));
+        for (const s of pp.sot.slice(0, 5)) {
+          const p = s.fairOver ?? s.price?.implied ?? null;
+          blocks.push(h("div", { class: "gk" }, [h("span", { text: `${s.player} O${s.line} · ${p == null ? "—" : `${Math.round(p * 100)}%`}` }), priceEl(s.price)]));
+        }
       }
     }
     blocks.push(h("div", { class: "disc", text: "⚠ Model estimates, not financial advice. Odds are −EV on average; stake small." }));

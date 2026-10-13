@@ -90,10 +90,24 @@ prices. Prices sit at `runners[].winRunnerOdds.americanDisplayOdds.americanOdds`
 League events come off the soccer SPORT page
 (`content-managed-page?page=SPORT&eventTypeId=1`) filtered by FanDuel's `competitionId` —
 228 Champions League, 10932509 Premier League, 117 LaLiga, 11984200 UEFA Nations League (141
-MLS); there are no custom competition pages (`customPageId=uefa-nations-league` is a 404). Player markets post late: early on a matchday an event can carry only
-two markets, which reads as "no props", not as a matching failure. Optional config: `fanduelRegion` (your state
-subdomain, default `nj`) and `fanduelWorldCupPageId` (only for competitions that do have a
-custom page).
+MLS); there are no custom competition pages (`customPageId=uefa-nations-league` is a 404).
+
+**The event page needs a tab (found 2026-10-13).** `event-page?eventId=…` on its own now returns
+exactly two markets — `WIN-DRAW-WIN` and `PENALTY_AWARDED?` — so corners, BTTS and every prop went
+quiet. An earlier note here read that as "player markets post late"; it was this. The request must
+name a tab **by slug** (the numeric ids in `layout.tabs` return the two-market page): `tab=popular`
+carries BTTS, totals, `TO_SCORE` (Anytime Goalscorer) and the player shots-on-target ladder,
+`tab=corners` the corner lines. `eventMarkets()` fetches both and merges them.
+
+Market shapes worth knowing: the corner ladder is `TOTAL_CORNERS_<line>` with `handicap` **0** — the
+line is in the runner name ("Over 9.5 Corners"), and the main line is the one priced closest to even
+money. Anytime scorer is `marketType` exactly `TO_SCORE`; `TO_SCORE_OR_ASSIST`,
+`TO_SCORE_2_OR_MORE_GOALS` and `TO_SCORE_A_HAT-TRICK` are different bets. Shots on target is a
+one-sided ladder (`PLAYER_TO_HAVE_<N>_OR_MORE_SHOTS_ON_TARGET`), not a two-way over/under, so there
+is nothing to de-vig: the lowest rung becomes the line and the percentage keeps the vig, labelled.
+
+Optional config: `fanduelRegion` (your state subdomain, default `nj`) and `fanduelWorldCupPageId`
+(only for competitions that do have a custom page).
 
 Single-book, so its player prices are **display-only** — there's no cross-book consensus to
 de-vig against, therefore no honest edge.

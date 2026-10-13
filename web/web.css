@@ -13,3 +13,8 @@
 #btn-download.dl { display: inline-flex; align-items: center; text-decoration: none; }
 .compact #btn-download.dl { padding-left: 6px; padding-right: 6px; }
 :root.touch #btn-download.dl { display: none; }
+
+/* "Install": Chrome's own install prompt, shown only once the browser says the app is installable
+   (and never inside the installed app). The desktop installer stays on "Get app". */
+#btn-install.install { display: inline-flex; align-items: center; color: var(--accent); }
+#btn-install.install:hover { color: var(--ink); background: var(--accent); }

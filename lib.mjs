@@ -1100,7 +1100,9 @@ function mapFanduelProps(fd) {
   const price = (ml, implied) => ({ primary: fmtAmerican(ml), primaryRaw: ml, best: null, bestBook: null, bestRaw: null, beats: false, implied: implied ?? ml2prob(ml) });
   return {
     scorers: fd.scorers.map((s) => ({ player: s.player, prob: null, twoSided: false, price: price(s.ml, s.implied) })),
-    sot: fd.sot.map((s) => ({ player: s.player, line: s.line, fairOver: s.fairOver, price: price(s.over) })),
+    // fairOver stays null for FanDuel's shots-on-target: it posts a one-sided "N or more" ladder,
+    // so there is no second side to de-vig against and the view says the vig is still in it
+    sot: fd.sot.map((s) => ({ player: s.player, line: s.line, fairOver: s.fairOver ?? null, price: price(s.over, s.implied) })),
     source: "fanduel",
   };
 }

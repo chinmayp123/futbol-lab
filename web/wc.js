@@ -78,7 +78,17 @@ async function publicView(code, name, missing) {
 // ── the slates: every competition, merged ─────────────────────────────────────
 const slates = {}; // code → { matches, comp } | null when nothing is published
 const allAnswered = () => COMPETITIONS.every((c) => c.code in slates);
-const rows = () => COMPETITIONS.flatMap((c) => slates[c.code]?.matches || []);
+const tagRow = (c, m) => ({ ...m, compCode: c.code, compShort: c.short, compName: c.name, compKey: c.key });
+// every competition's rows, with the live overlay (below) laid over the published slate
+const rows = () => COMPETITIONS.flatMap((c) => {
+  const published = slates[c.code]?.matches || [];
+  const live = liveSlates[c.code]?.byId;
+  if (!live || !live.size) return published;
+  const out = published.map((m) => live.get(String(m.id)) || m);
+  const have = new Set(published.map((m) => String(m.id)));
+  for (const [id, m] of live) if (!have.has(id)) out.push(m); // a fixture the publisher hasn't caught up with
+  return out;
+});
 
 // Monday–Thursday of a week with Champions League games → { label } for the banner, else null
 function uclWeek() {
@@ -106,10 +116,51 @@ for (const c of COMPETITIONS) {
 }
 function onSlates() {
   if (!allAnswered()) return;
+  startSlatePolling();
   // a match page opened before the slates arrived: its game can be found now
   const want = query && rows().find((m) => String(m.id) === query);
   if (want && String(cur.id ?? "") !== query) select(want);
   else push();
+}
+
+// ── the live slate ───────────────────────────────────────────────────────────
+// The publisher writes the slate from GitHub Actions, but GitHub skips most of the 5-minute
+// schedule — measured over 33 days it ran about every four hours — so a game that kicked off an
+// hour ago can still read "not started" on Today. While any of a competition's games is inside its
+// live window, ask the Vercel function for a fresh slate (keyless, CDN-cached 30 s, so viewers
+// share one build) and lay those rows over the published ones. Best-effort: a failure leaves the
+// published slate exactly as it was.
+const SLATE_POLL = 45e3;
+const liveSlates = {}; // code → { at, byId: Map(id → row) }
+let slateTimer = null;
+
+async function pollSlate(c) {
+  try {
+    const res = await fetch(`${liveUrlFor(c.code)}?slate=1`);
+    const j = await res.json();
+    if (!Array.isArray(j.matches) || !j.matches.length) return false;
+    liveSlates[c.code] = { at: j.at || Date.now(), byId: new Map(j.matches.map((m) => [String(m.id), tagRow(c, m)])) };
+    return true;
+  } catch { return false; }
+}
+// does this competition have anything live, about to kick off, or just finished?
+function needsLiveSlate(code) {
+  const live = liveSlates[code]?.byId;
+  const list = live && live.size ? [...live.values()] : (slates[code]?.matches || []);
+  return list.some(wantsLive);
+}
+function slateTick() {
+  if (document.visibilityState === "hidden") return; // nothing to update while nobody is looking
+  for (const c of COMPETITIONS) {
+    if (!needsLiveSlate(c.code)) continue;
+    pollSlate(c).then((ok) => { if (ok) push(); });
+  }
+}
+function startSlatePolling() {
+  if (slateTimer) return;
+  slateTick();
+  slateTimer = setInterval(slateTick, SLATE_POLL);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") slateTick(); });
 }
 
 // ── the open match: the one a match page asked for (setMatch), or none ─────────
@@ -233,7 +284,11 @@ window.wc = {
   },
   toggleExpand: async () => { expanded = !expanded; saved.set("expanded", expanded ? "1" : "0"); return expanded; },
   togglePin: async () => false, // no always-on-top in a browser tab
-  refresh: async () => { if (cur.id) poll(cur.id, true); },
+  refresh: async () => {
+    if (cur.id) poll(cur.id, true);
+    await Promise.all(COMPETITIONS.filter((c) => needsLiveSlate(c.code)).map((c) => pollSlate(c)));
+    push();
+  },
   hide: async () => {},
   quit: async () => {},
 };
@@ -249,8 +304,35 @@ function paintDownload() {
   a.title = /Windows/i.test(navigator.userAgent) ? "Download the Futbol Lab app for Windows" : "Download the Futbol Lab desktop app";
 }
 
+// ── installing it as an app ──────────────────────────────────────────────────
+// Chrome fires beforeinstallprompt once the page is installable (manifest + service worker, https).
+// Until it does there is nothing to click, so the button stays hidden rather than lying about it.
+// Inside the installed app (display-mode: standalone) there is nothing left to install.
+let installPrompt = null;
+function paintInstall() {
+  const btn = document.getElementById("btn-install");
+  if (!btn) return;
+  const installed = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  btn.hidden = !installPrompt || installed;
+}
+addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installPrompt = e; paintInstall(); });
+addEventListener("appinstalled", () => { installPrompt = null; paintInstall(); });
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest?.("#btn-install") || !installPrompt) return;
+  const prompt = installPrompt;
+  installPrompt = null;
+  paintInstall();
+  try { await prompt.prompt(); } catch { /* the user dismissed it */ }
+});
+
+// the service worker is what makes it installable, and what lets it open without a network
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+  addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch((e) => console.warn("sw:", e.message)));
+}
+
 paintAuth();
 paintDownload();
+paintInstall();
 // renderer.js registers its callbacks as it loads, so it must run after window.wc exists
 const script = document.createElement("script");
 script.src = "renderer.js";

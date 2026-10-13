@@ -19,8 +19,32 @@ const LIVE_BASE = process.env.FUTBOL_LIVE_BASE || "https://futbol-lab.vercel.app
 
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT);
-for (const f of ["widget/renderer.js", "widget/style.css", "widget/icon.png", "web/wc.js", "web/web.css", "web/firebase-config.js"])
+for (const f of ["widget/renderer.js", "widget/style.css", "widget/icon.png", "widget/icon-192.png", "widget/icon-512.png",
+  "widget/icon-maskable-512.png", "web/wc.js", "web/web.css", "web/firebase-config.js"])
   cpSync(at(f), new URL(f.split("/").pop(), OUT));
+
+// the installable web app: a manifest Chrome can offer "Install app" from, and a service worker
+// stamped with this build so each deploy gets its own cache. Relative start_url/scope, because the
+// site lives at / on Vercel and at /futbol-lab/ on GitHub Pages.
+const BUILD = process.env.GITHUB_SHA?.slice(0, 7) || process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || String(Date.now());
+writeFileSync(new URL("manifest.webmanifest", OUT), JSON.stringify({
+  name: "Futbol Lab",
+  short_name: "Futbol Lab",
+  description: "Live scores, real xG, and a model that prices every market — Premier League, LaLiga, Champions League and the Nations League.",
+  start_url: "./",
+  scope: "./",
+  display: "standalone",
+  orientation: "any",
+  background_color: "#070b1f",
+  theme_color: "#070b1f",
+  categories: ["sports"],
+  icons: [
+    { src: "icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+    { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+    { src: "icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+  ],
+}, null, 2));
+writeFileSync(new URL("sw.js", OUT), readFileSync(at("web/sw.js"), "utf8").replace("__BUILD__", BUILD));
 
 const comps = SITE_COMPETITIONS.map((code) => ({ code, key: COMPETITIONS[code].key, short: COMPETITIONS[code].short, name: COMPETITIONS[code].name }));
 writeFileSync(new URL("site-config.js", OUT),
@@ -30,6 +54,8 @@ writeFileSync(new URL("site-config.js", OUT),
 // Firestore and the live API — nothing else. Still no inline script.
 const CSP = [
   "default-src 'none'",
+  "manifest-src 'self'",
+  "worker-src 'self'",
   "img-src 'self' https: data:",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src https://fonts.gstatic.com",
@@ -45,11 +71,12 @@ const swap = (from, to, what) => {
   if (!from.test(html)) throw new Error(`web/build: couldn't find ${what} in widget/index.html — update the build`);
   html = html.replace(from, to);
 };
-swap(/<meta http-equiv="Content-Security-Policy"[^>]*\/>/, `<meta http-equiv="Content-Security-Policy" content="${CSP}" />\n<link rel="icon" href="icon.png" />`, "the CSP meta tag");
+swap(/<meta http-equiv="Content-Security-Policy"[^>]*\/>/, `<meta http-equiv="Content-Security-Policy" content="${CSP}" />\n<link rel="icon" href="icon.png" />\n<link rel="manifest" href="manifest.webmanifest" />\n<link rel="apple-touch-icon" href="icon-192.png" />\n<meta name="theme-color" content="#070b1f" />\n<meta name="mobile-web-app-capable" content="yes" />`, "the CSP meta tag");
 swap(/<link rel="stylesheet" href="style.css" \/>/, `<link rel="stylesheet" href="style.css" />\n<link rel="stylesheet" href="web.css" />`, "the stylesheet link");
-swap(/<button id="btn-expand"/, `<a id="btn-download" class="tab dl" href="https://github.com/chinmayp123/futbol-lab/releases/latest" target="_blank" rel="noopener" title="Download the Futbol Lab desktop app">Get app</a>\n        <button id="btn-auth" class="tab auth" title="Sign in to see your record and track slips">Sign in</button>\n        <button id="btn-expand"`, "the expand button");
+swap(/<button id="btn-expand"/, `<button id="btn-install" class="tab install" title="Install Futbol Lab as an app" hidden>Install</button>
+        <a id="btn-download" class="tab dl" href="https://github.com/chinmayp123/futbol-lab/releases/latest" target="_blank" rel="noopener" title="Download the Futbol Lab desktop app">Get app</a>\n        <button id="btn-auth" class="tab auth" title="Sign in to see your record and track slips">Sign in</button>\n        <button id="btn-expand"`, "the expand button");
 // wc.js defines window.wc, then loads renderer.js itself
 swap(/<script src="renderer.js"><\/script>/, `<script type="module" src="wc.js"></script>`, "the renderer script tag");
 writeFileSync(new URL("index.html", OUT), html);
 
-console.log(`site/ built · ${comps.map((c) => c.short).join(" + ")} · live API ${LIVE_BASE}`);
+console.log(`site/ built · ${comps.map((c) => c.short).join(" + ")} · live API ${LIVE_BASE} · build ${BUILD}`);

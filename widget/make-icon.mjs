@@ -2,6 +2,7 @@
 //   tray.png (16px) + tray@2x.png (32px)  — the mark on transparent, for the tray
 //   icon.png (256px) + icon.ico (16…256)  — the same mark, for the window, taskbar, shortcut, favicon
 //   icon-1024.png                         — the macOS app icon (electron-builder refuses anything under 512px)
+//   icon-192 / icon-512 / icon-maskable-512 — the installable web app's icons (web/build.mjs)
 //   mark.svg                              — the vector mark (the title bar inlines the same drawing)
 // The mark: a white ball with classic navy panels — a pentagon in the middle, five more out along its
 // corners, seams between them — circled by a blue orbit that passes in front of the ball's lower half
@@ -75,17 +76,26 @@ function ink(x, y) {
   }
   return o.d <= ORBIT.w / 2 ? "accent" : null;
 }
-function raster(size, ss = 8) {
-  const px = new Uint8Array(size * size * 4), k = 100 / size, col = { navy: NAVY, white: WHITE, accent: ACCENT };
+// pad: leave this fraction of the canvas empty on each side (a maskable icon's safe zone — Android
+// crops the corners off, so the mark has to sit inside the middle ~80%). bg: fill behind it.
+function raster(size, ss = 8, { pad = 0, bg = null } = {}) {
+  const px = new Uint8Array(size * size * 4), col = { navy: NAVY, white: WHITE, accent: ACCENT };
+  const inset = size * pad, span = size - inset * 2, k = 100 / span;
   for (let py = 0; py < size; py++) for (let pxi = 0; pxi < size; pxi++) {
     let n = 0, r = 0, g = 0, b = 0;
     for (let sy = 0; sy < ss; sy++) for (let sx = 0; sx < ss; sx++) {
-      const h = ink((pxi + (sx + 0.5) / ss) * k, (py + (sy + 0.5) / ss) * k);
+      const h = ink((pxi + (sx + 0.5) / ss - inset) * k, (py + (sy + 0.5) / ss - inset) * k);
       if (!h) continue;
       n++; r += col[h][0]; g += col[h][1]; b += col[h][2];
     }
     const o = (py * size + pxi) * 4;
-    if (n) { px[o] = r / n; px[o + 1] = g / n; px[o + 2] = b / n; px[o + 3] = Math.round((255 * n) / (ss * ss)); }
+    const cover = n / (ss * ss);
+    if (bg) { // composite the mark over the background, so the icon is opaque corner to corner
+      px[o] = n ? Math.round((r / n) * cover + bg[0] * (1 - cover)) : bg[0];
+      px[o + 1] = n ? Math.round((g / n) * cover + bg[1] * (1 - cover)) : bg[1];
+      px[o + 2] = n ? Math.round((b / n) * cover + bg[2] * (1 - cover)) : bg[2];
+      px[o + 3] = 255;
+    } else if (n) { px[o] = r / n; px[o + 1] = g / n; px[o + 2] = b / n; px[o + 3] = Math.round(255 * cover); }
   }
   return px;
 }
@@ -142,6 +152,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   writeFileSync(join(HERE, "icon.png"), png(256, raster(256)));
   writeFileSync(join(HERE, "icon-1024.png"), png(1024, raster(1024, 4))); // 4×4 supersampling is plenty at this size
   writeFileSync(join(HERE, "icon.ico"), ico([16, 24, 32, 48, 64, 128, 256].map((size) => ({ size, data: png(size, raster(size)) }))));
+  // the installable web app (web/build.mjs copies these into site/): Chrome wants 192 and 512, plus
+  // a maskable one it can crop to a circle or a squircle without clipping the mark
+  writeFileSync(join(HERE, "icon-192.png"), png(192, raster(192)));
+  writeFileSync(join(HERE, "icon-512.png"), png(512, raster(512, 6)));
+  writeFileSync(join(HERE, "icon-maskable-512.png"), png(512, raster(512, 6, { pad: 0.14, bg: NAVY })));
   writeFileSync(join(HERE, "mark.svg"), markSvg() + "\n");
   console.log("wrote widget/tray.png, tray@2x.png, icon.png, icon.ico, mark.svg");
 }
