@@ -107,7 +107,10 @@ function uclWeek() {
 for (const c of COMPETITIONS) {
   onSnapshot(refIn(c.code, "view", "slate"), (snap) => {
     const d = parse(snap);
-    slates[c.code] = d ? { matches: (d.matches || []).map((m) => ({ ...m, compCode: c.code, compShort: c.short, compName: c.name, compKey: c.key })), comp: d.comp || null } : null;
+    slates[c.code] = d ? { matches: (d.matches || []).map((m) => tagRow(c, m)), comp: d.comp || null } : null;
+    // a freshly published slate is at least as new as any overlay we hold, so let it win; the next
+    // tick (immediately, from onSlates) re-polls if anything is still live
+    delete liveSlates[c.code];
     onSlates();
   }, () => {
     if (!(c.code in slates)) slates[c.code] = null;
@@ -117,6 +120,7 @@ for (const c of COMPETITIONS) {
 function onSlates() {
   if (!allAnswered()) return;
   startSlatePolling();
+  slateTick(); // a new published slate just landed: refresh the live overlay for anything still on
   // a match page opened before the slates arrived: its game can be found now
   const want = query && rows().find((m) => String(m.id) === query);
   if (want && String(cur.id ?? "") !== query) select(want);
@@ -152,7 +156,9 @@ function needsLiveSlate(code) {
 function slateTick() {
   if (document.visibilityState === "hidden") return; // nothing to update while nobody is looking
   for (const c of COMPETITIONS) {
-    if (!needsLiveSlate(c.code)) continue;
+    // nothing live any more: drop the overlay so yesterday's rows can never sit on top of the
+    // published slate, and stop calling the function
+    if (!needsLiveSlate(c.code)) { delete liveSlates[c.code]; continue; }
     pollSlate(c).then((ok) => { if (ok) push(); });
   }
 }
