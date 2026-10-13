@@ -280,10 +280,15 @@ window.wc = {
     const pub = await publicView(code, "menu", "the builder is published with the 10:00 card");
     const live = (pub?.games || []).filter((g) => stillToPlay(g.id));
     if (live.length) return { ...pub, games: live, source: "published" };
-    try {
-      const j = await fetch(`${liveUrlFor(code)}?menu=1`).then((r) => r.json());
-      if (j && Array.isArray(j.games)) return { ...j, source: "live" };
-    } catch { /* fall through to whatever was published */ }
+    // building a board takes ~12 s, and a cold function can time out on the first ask; the second
+    // lands on a warm instance (or the CDN), so one retry is the difference between a board and an
+    // empty builder
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const j = await fetch(`${liveUrlFor(code)}?menu=1`).then((r) => r.json());
+        if (j && Array.isArray(j.games)) return { ...j, source: "live" };
+      } catch { /* retry once, then fall through to whatever was published */ }
+    }
     return pub?.error ? pub : { ...pub, games: [], source: "published" };
   },
   getStandings: (code) => publicView(code, "standings", "the table hasn't been published yet"),
