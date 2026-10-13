@@ -18,6 +18,7 @@
 
 import * as store from "../store.mjs";
 import { getWidgetState, listMatchesData } from "../lib.mjs";
+import { parlayMenu } from "../parlays.mjs";
 import { connect } from "../publisher/firestore.mjs";
 
 const RECORDS_TTL = 60e3;
@@ -48,6 +49,20 @@ export async function GET(request) {
       const matches = await listMatchesData();
       return Response.json({ matches, at: Date.now() }, {
         headers: { ...cors, "Cache-Control": "public, max-age=0, s-maxage=30, stale-while-revalidate=60" },
+      });
+    } catch (e) {
+      return Response.json({ error: String(e?.message || e) }, { status: 500, headers: cors });
+    }
+  }
+  if (params.get("menu") === "1") {
+    // the builder's board. The publisher writes it with the 10:00 card, but that only happens when
+    // GitHub runs the job, so a day's board is often missing entirely. Built here keylessly (~12 s)
+    // from the same code: FanDuel and Action Network prices, no Odds API or OddsPapi spend.
+    try {
+      await records();
+      const menu = await parlayMenu();
+      return Response.json({ ...menu, at: Date.now() }, {
+        headers: { ...cors, "Cache-Control": "public, max-age=0, s-maxage=300, stale-while-revalidate=600" },
       });
     } catch (e) {
       return Response.json({ error: String(e?.message || e) }, { status: 500, headers: cors });

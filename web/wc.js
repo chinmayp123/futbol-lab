@@ -272,7 +272,20 @@ window.wc = {
       longshot: cards.map(([, d]) => d.longshot).filter(Boolean).sort((a, b) => (b.legs?.length || 0) - (a.legs?.length || 0))[0] || null,
     };
   },
-  getParlayMenu: (code) => publicView(code, "menu", "the builder is published with the 10:00 card"),
+  // the builder's board: the published one while its games are still to play, otherwise built on
+  // demand by the live function — the publisher only writes it with the 10:00 card, and GitHub runs
+  // that job a handful of times a day, so the board was usually missing or a day old
+  getParlayMenu: async (code) => {
+    const stillToPlay = (id) => rows().some((m) => String(m.id) === String(id) && m.state === "pre");
+    const pub = await publicView(code, "menu", "the builder is published with the 10:00 card");
+    const live = (pub?.games || []).filter((g) => stillToPlay(g.id));
+    if (live.length) return { ...pub, games: live, source: "published" };
+    try {
+      const j = await fetch(`${liveUrlFor(code)}?menu=1`).then((r) => r.json());
+      if (j && Array.isArray(j.games)) return { ...j, source: "live" };
+    } catch { /* fall through to whatever was published */ }
+    return pub?.error ? pub : { ...pub, games: [], source: "published" };
+  },
   getStandings: (code) => publicView(code, "standings", "the table hasn't been published yet"),
   getRecord: (code) => privateView(code, "record", "the bet record"),
   // the slip is queued in its league; the next publisher run logs it and it settles like the card

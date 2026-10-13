@@ -1701,6 +1701,24 @@ function boardRow(axis, name, prior, cells, { acc = false, end = false } = {}) {
     ...cells,
   ]);
 }
+// ── SUGGEST A SLIP ───────────────────────────────────────────────────────────
+// The same rule the card uses to pick what it bets (parlays.mjs `bettable` + the two-axis guard):
+// an edge inside the believable band, no guard tripped, the model agreeing with the market's shape,
+// not on a side sharp money is fading — and never a scorer (display-only: one book, no consensus to
+// de-vig) or corners (benched). One leg per game, because two legs on one game are two bets on the
+// same opinion, and the suggestion is ranked by hit probability rather than by price.
+const AXIS_OF = { Moneyline: "result", DNB: "result", Spread: "result", Total: "goals", TeamTotal: "goals", BTTS: "goals" };
+function suggestLegs(data, max = 3) {
+  const [lo, hi] = data.band || [0.03, 0.07];
+  const inBand = (l) => { const e = l.rawEdge ?? l.edge ?? 0; return e >= lo && e < hi; };
+  const ok = (l) => AXIS_OF[l.market] && !l.fair && !l.guard && l.coherent !== false && !l.fadePublic && inBand(l);
+  const perGame = [];
+  for (const g of data.games || []) {
+    const best = (g.legs || []).filter(ok).sort((a, b) => b.modelProb - a.modelProb)[0];
+    if (best) perGame.push(best);
+  }
+  return perGame.sort((a, b) => b.modelProb - a.modelProb).slice(0, max);
+}
 const colHead = (a, b, c, d) => h("div", { class: "colhead" }, [h("span", { text: a }), h("span", { text: b }), h("span", { text: c }), h("span", { text: d })]);
 
 function renderBuilder(data, code) {
@@ -1813,6 +1831,21 @@ function renderBuilder(data, code) {
     h("div", {}, [h("div", { class: "rail-title", text: "Your slip" }), h("div", { class: "rail-sub", text: selected.length ? `${selected.length} leg${selected.length === 1 ? "" : "s"} · ${nGames === 1 ? "same game" : `${nGames} games`}` : "empty" })]),
     h("span", { class: "stake-wrap" }, [txt("$"), stakeIn]),
   ]));
+  const suggest = () => {
+    const legs = suggestLegs(data);
+    builderSel.clear();
+    for (const l of legs) builderSel.set(slipKey(l), l);
+    builderMsg = legs.length >= 2
+      ? { ok: true, text: `Suggested ${legs.length} legs — one per game, ranked by how often the model expects them to land. The card stakes these as separate singles: a parlay multiplies the book's margin across them.` }
+      : { ok: false, text: legs.length === 1
+        ? "Only one leg on this board clears the band, so there's no parlay worth suggesting — it's on the slip as a single."
+        : "Nothing on this board clears the edge band. That's a real answer, not a failure: the model agrees with the market here." };
+    render();
+  };
+  rail.appendChild(h("div", { class: "suggest-row" }, [
+    h("button", { class: "suggest", text: "Suggest a slip", title: "Fill the slip with the model's in-band legs, one per game", onclick: suggest }),
+    h("span", { class: "suggest-note", text: "model's in-band legs · one per game · no scorers" }),
+  ]));
   const g = gradeSlip(selected, builderStake);
   if (!g) {
     rail.appendChild(h("div", { class: "empty-slip" }, [txt("Tap cells on the board to add legs. The model grades the combined parlay here: "), h("b", { text: "fair odds, edge, EV and a half-Kelly stake." })]));
@@ -1848,7 +1881,7 @@ function renderBuilder(data, code) {
   const trackBtn = h("button", { class: "track", text: `Track · $${builderStake}`, onclick: () => trackSlip(selected, data.date, code) });
   trackBtn.disabled = !selected.length || selected.some((l) => l.fair);
   rail.appendChild(h("div", { class: "actions" }, [trackBtn, h("button", { class: "clear", text: "Clear", onclick: () => { builderSel.clear(); builderMsg = null; render(); } })]));
-  rail.appendChild(h("div", { class: "rail-src", text: `${data.date} · prices FanDuel · lines OddsPapi · xG FotMob` }));
+  rail.appendChild(h("div", { class: "rail-src", text: `${data.date} · ${data.source === "live" ? "priced just now" : "priced with the 10:00 card"} · FanDuel · OddsPapi · FotMob` }));
   wrap.appendChild(rail);
   return wrap;
 }

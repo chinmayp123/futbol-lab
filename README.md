@@ -132,7 +132,19 @@ it goes to its league or its day.
 A market board for any upcoming game — result axis, goals axis, scorers — with a verdict on
 every cell (bet, lean, pass, fade, guarded, with the guard's reason). Click cells to build a
 slip; the rail prices it with Model / Book / Edge boxes, EV, half-Kelly and correlation
-warnings, and can track it into the bet record.
+warnings, and **Track** logs it into the bet record so it settles like the card.
+
+**Suggest a slip** fills the slip with the model's own picks by the card's rule: an edge inside
+the believable band, no guard tripped, the model agreeing with the market's shape, nothing on a
+side sharp money is fading — one leg per game (two legs on one game are two bets on the same
+opinion), ranked by how often the model expects them to land. Scorers are never suggested: one
+book, no consensus to de-vig, display-only. If nothing clears the band it says so rather than
+inventing a pick, and it will say plainly that the card stakes these as **separate singles** —
+a parlay multiplies the book's margin across them.
+
+The board comes from the 10:00 card when that is today's, and is otherwise **priced on demand**
+(keylessly, in about 12 seconds) by the live function, so it is never empty just because the
+publisher's cron did not run.
 
 ### Table
 The 36-club league phase as one ordered list: a coloured rank gutter, a labelled cut row at
