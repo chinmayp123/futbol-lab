@@ -155,7 +155,11 @@ export async function settle() {
           const names = [];
           for (const e of sum.keyEvents || []) {
             const t = (e.type?.text || "").toLowerCase();
-            if (!t.includes("goal") || t.includes("own")) continue; // own goals don't credit a scorer
+            // ESPN labels a converted spot kick "Penalty - Scored", which does NOT contain "goal" —
+            // so the old filter graded a player who scored ONLY from the spot as a miss. A missed or
+            // saved penalty ("Penalty - Missed"/"Saved") must still not count, hence the "scored" test.
+            const scored = (t.includes("goal") && !t.includes("own")) || (t.includes("penalt") && t.includes("scored"));
+            if (!scored) continue; // own goals don't credit a scorer
             const who = (e.participants || [])[0]?.athlete?.displayName;
             if (who) names.push(who);
           }
