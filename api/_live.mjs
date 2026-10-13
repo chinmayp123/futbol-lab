@@ -37,7 +37,10 @@ async function records() {
 
 export async function GET(request) {
   const origin = request.headers.get("origin") || "";
-  const cors = ALLOWED.some((rx) => rx.test(origin)) ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" } : {};
+  // Vary on Origin ALWAYS, not just when the origin is allowed: these responses are CDN-cached, and
+  // a copy fetched without an Origin header (a curl, a warmer) would otherwise be served to a browser
+  // without the Access-Control-Allow-Origin header and fail CORS for the GitHub Pages copy.
+  const cors = { Vary: "Origin", ...(ALLOWED.some((rx) => rx.test(origin)) ? { "Access-Control-Allow-Origin": origin } : {}) };
   const params = new URL(request.url).searchParams;
   if (params.get("slate") === "1") {
     try {
