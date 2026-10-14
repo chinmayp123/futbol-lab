@@ -134,6 +134,11 @@ every cell (bet, lean, pass, fade, guarded, with the guard's reason). Click cell
 slip; the rail prices it with Model / Book / Edge boxes, EV, half-Kelly and correlation
 warnings, and **Track** logs it into the bet record so it settles like the card.
 
+A ticket logged as **real money** (one actually placed, as opposed to the paper card) is kept
+out of every number that measures the model — hit rate, Brier, calibration, the shadow fade —
+and tallied on its own, because a real ticket can hold markets this app never bets. The Record
+tab labels which is which, and the bankroll curve follows the real money once there is any.
+
 **Suggest a slip** fills the slip with the model's own picks by the card's rule: an edge inside
 the believable band, no guard tripped, the model agreeing with the market's shape, nothing on a
 side sharp money is fading — one leg per game (two legs on one game are two bets on the same

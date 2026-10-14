@@ -293,6 +293,8 @@ button, a, .gcard, .cell.clickable, .tr, .qhit, .cal-day, .brk-card, .teaser, .s
 .tkt.fun { border-left-color: var(--fade); }
 .tkt.win { border-left-color: var(--bet); } .tkt.loss { border-left-color: var(--neg); } .tkt.push { border-left-color: var(--dim); }
 .tk-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tkt.real { border-color: #c9a227; box-shadow: inset 0 0 0 1px rgba(201, 162, 39, .25); }
+.tk-tag { font: 700 9px/1 var(--mono); letter-spacing: .1em; color: #0d0d0d; background: #c9a227; padding: 3px 5px; border-radius: 3px; }
 .tk-kind { font: 500 9.5px/1 var(--mono); letter-spacing: 1.2px; text-transform: uppercase; color: var(--accent); }
 .tkt.fun .tk-kind { color: var(--fade); }
 .tk-game { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font: 800 13px/1 var(--cd); color: var(--dim); text-transform: uppercase; }

@@ -36,9 +36,16 @@ export function recordDay(out) {
 // view exactly like the daily card. Appended to its slate `date` (preserving the auto singles and
 // any other tracked parlays); re-tracking an identical leg set on the same date replaces it rather
 // than duplicating. Legs carry the event `id` so settle() can grade them from the final summary.
+//
+// `real: true` marks a ticket the owner actually placed with their own money, as opposed to the
+// model's paper card. The distinction is load-bearing, not cosmetic: a real ticket can hold legs
+// the model never picked (its first one was five FanDuel scorer legs, a market this app labels
+// display-only), and folding those into legHitRate / brier / fade / edgeTrust would have the model
+// graded on somebody else's opinions. So every statistic that measures THE MODEL is computed over
+// paper only, and real money gets its own tally — see stats() at the bottom of this file.
 const amToDecimal = (ml) => (ml == null ? null : ml > 0 ? ml / 100 + 1 : 100 / -ml + 1);
 const decToAmerican = (d) => (d >= 2 ? Math.round((d - 1) * 100) : Math.round(-100 / (d - 1)));
-export function trackParlay({ legs, stake = 10, date } = {}) {
+export function trackParlay({ legs, stake = 10, date, real = false } = {}) {
   if (!Array.isArray(legs) || !legs.length || !date) return { error: "need legs + date" };
   const plLegs = legs.map((l) => ({
     id: l.id, game: l.game, market: l.market, pick: l.pick,
@@ -56,14 +63,16 @@ export function trackParlay({ legs, stake = 10, date } = {}) {
   if (!day) { day = { date, stake, parlays: [] }; data.days.push(day); data.days.sort((a, b) => a.date.localeCompare(b.date)); }
   const sig = plLegs.map((l) => `${l.game}|${l.market}|${l.pick}`).sort().join("~");
   const games = [...new Set(plLegs.map((l) => l.game))];
-  day.parlays = (day.parlays || []).filter((p) => !(p.type === "builder" && p._sig === sig)); // replace an identical re-track
+  // replace an identical re-track - but a real ticket and a paper one with the same legs on the
+  // same date are two different bets, so they never replace each other
+  day.parlays = (day.parlays || []).filter((p) => !(p.type === "builder" && p._sig === sig && !!p.real === !!real));
   day.parlays.push({
-    type: "builder", _sig: sig, game: games.length > 1 ? `${games.length} games` : games[0],
+    type: "builder", _sig: sig, real: !!real, game: games.length > 1 ? `${games.length} games` : games[0],
     legs: plLegs, dec, americanOdds: decToAmerican(dec), modelProb, stake, payout, ev, kelly,
     settled: false, result: null,
   });
   write(data);
-  return { ok: true, date, legs: plLegs.length, dec, americanOdds: decToAmerican(dec), modelProb, payout, ev };
+  return { ok: true, date, real: !!real, legs: plLegs.length, dec, americanOdds: decToAmerican(dec), modelProb, payout, ev };
 }
 
 // grade a single leg against a final result { hs, as, hAbbr, aAbbr, corners }.
@@ -214,10 +223,10 @@ export async function settle() {
 const FADE_TWO_WAY = new Set(["Total", "BTTS", "Corners", "TeamTotal", "Spread", "DNB"]);
 const FADE_VIG = 1.045;   // assumed two-way overround, for inverting the model-side price
 const FADE_STAKE = 10;    // hypothetical flat stake per faded leg
-function fadeStats(days) {
+function fadeStats(days, keep = () => true) {
   const seen = new Set();
   const legs = [];
-  for (const d of days) for (const p of d.parlays || []) for (const l of p.legs || []) {
+  for (const d of days) for (const p of (d.parlays || []).filter(keep)) for (const l of p.legs || []) {
     if (l.result !== "hit" && l.result !== "miss") continue;
     const k = `${d.date}|${l.game}|${l.market}|${l.pick}`;
     if (seen.has(k)) continue;
@@ -281,7 +290,7 @@ export function goalsBias() {
   const days = (read().days || []).slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, GB_WINDOW);
   const seen = new Set();
   let sumModel = 0, sumReal = 0, n = 0;
-  for (const d of days) for (const p of d.parlays || []) for (const l of p.legs || []) {
+  for (const d of days) for (const p of d.parlays || []) for (const l of (p.real ? [] : p.legs) || []) {
     if (l.market !== "Total" || (l.result !== "hit" && l.result !== "miss")) continue;
     const key = `${d.date}|${l.game}`;
     if (seen.has(key)) continue;
@@ -313,7 +322,7 @@ export function edgeTrust() {
   const days = read().days || [];
   const seen = new Set();
   let num = 0, den = 0, n = 0;
-  for (const d of days) for (const p of d.parlays || []) for (const l of p.legs || []) {
+  for (const d of days) for (const p of d.parlays || []) for (const l of (p.real ? [] : p.legs) || []) {
     if (!TRUST_MARKETS.has(l.market) || (l.result !== "hit" && l.result !== "miss")) continue;
     if (l.ml == null || l.edge == null || !l.edge) continue;
     const k = `${d.date}|${l.game}|${l.market}|${l.pick}`;
@@ -428,9 +437,11 @@ export async function captureClosing() {
   return { captured };
 }
 
-// calibration + performance over a given list of logged days
-function computeStats(days) {
-  const legs = days.flatMap((d) => d.parlays).flatMap((p) => p.legs).filter((l) => l.result === "hit" || l.result === "miss");
+// calibration + performance over a given list of logged days, restricted to the parlays `keep`
+// accepts (paper only, real only, or everything) - see stats()
+function computeStats(days, keep = () => true) {
+  const pool = (d) => (d.parlays || []).filter(keep);
+  const legs = days.flatMap(pool).flatMap((p) => p.legs).filter((l) => l.result === "hit" || l.result === "miss");
   const buckets = Array.from({ length: 10 }, () => ({ n: 0, hit: 0, psum: 0 }));
   let brier = 0, hits = 0;
   for (const l of legs) {
@@ -440,7 +451,7 @@ function computeStats(days) {
     const b = Math.min(9, Math.max(0, Math.floor(l.modelProb * 10)));
     buckets[b].n++; buckets[b].hit += o; buckets[b].psum += l.modelProb;
   }
-  const settled = days.flatMap((d) => d.parlays).filter((p) => p.settled);
+  const settled = days.flatMap(pool).filter((p) => p.settled);
   let staked = 0, returned = 0, wins = 0;
   for (const p of settled) {
     staked += p.stake;
@@ -452,7 +463,7 @@ function computeStats(days) {
   // at kickoff, which is exactly why it reads edge faster than results do. Deduped like fadeStats.
   const clvSeen = new Set();
   let clvSum = 0, clvBeat = 0, clvN = 0;
-  for (const d of days) for (const p of d.parlays || []) for (const l of p.legs || []) {
+  for (const d of days) for (const p of pool(d)) for (const l of p.legs || []) {
     if (l.closeMl == null || l.ml == null) continue;
     const k = `${d.date}|${l.game}|${l.market}|${l.pick}`;
     if (clvSeen.has(k)) continue;
@@ -468,18 +479,36 @@ function computeStats(days) {
     calibration: buckets.map((b, i) => ({ bucket: `${i * 10}-${i * 10 + 10}%`, n: b.n, predicted: b.n ? b.psum / b.n : null, actual: b.n ? b.hit / b.n : null })).filter((b) => b.n > 0),
     parlays: settled.length, parlayWins: wins, staked, returned, profit: returned - staked,
     roi: staked ? (returned - staked) / staked : null,
-    fade: fadeStats(days),
+    fade: fadeStats(days, keep),
   };
 }
 
+// paper vs real money. The TOP-LEVEL numbers are the PAPER card and nothing else, because every
+// one of them is a claim about the model: legHitRate, brier, calibration, the shadow fade and CLV
+// all only mean something over legs the model itself selected. `real` is the owner's own placed
+// tickets, tallied separately, and `combined` is the two together for the bankroll view - money is
+// money regardless of who picked it. Both are null until a real ticket exists, so a log with no
+// real money reads exactly as it did before the split.
+const isPaper = (p) => !p.real;
+const isReal = (p) => !!p.real;
+const anyReal = (days) => days.some((d) => (d.parlays || []).some(isReal));
+
 // all-time calibration + performance across everything settled
-export function stats() { return computeStats(read().days || []); }
+export function stats() {
+  const days = read().days || [];
+  const real = anyReal(days);
+  return {
+    ...computeStats(days, isPaper),
+    real: real ? computeStats(days, isReal) : null,
+    combined: real ? computeStats(days) : null,
+  };
+}
 
 // rolling window: stats over just the most recent `nDays` logged days, so a single old lucky
 // hit stops skewing the picture as more data comes in. Includes the date range it covers.
 export function statsRecent(nDays = 7) {
   const days = (read().days || []).slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, nDays);
-  return { ...computeStats(days), windowDays: days.length, from: days[days.length - 1]?.date || null, to: days[0]?.date || null };
+  return { ...computeStats(days, isPaper), windowDays: days.length, from: days[days.length - 1]?.date || null, to: days[0]?.date || null };
 }
 
 export function readLog() { return read(); }

@@ -229,6 +229,17 @@ negative skill), projection accuracy, and **closing-line value**: the bet price 
 captured pre-kickoff close. CLV is knowable at kickoff, so it reads edge months before
 results can.
 
+**Paper and real money are counted separately.** A logged ticket carries `real: true` when
+the owner actually placed it, and every statistic that is a claim about *the model* — leg hit
+rate, Brier, calibration, the shadow fade, CLV, and both learned dials — is computed over the
+paper card alone. A real ticket can hold legs the model never picked: the first one logged was
+five FanDuel scorer legs, a market this app calls display-only precisely because it cannot be
+judged. Grading the model on those would flatter or damn it for someone else's opinions.
+`stats()` therefore returns the paper numbers at the top level, the owner's own bets under
+`real`, and the two together under `combined` — the last only for the bankroll curve, where
+money is money whoever picked it. With no real ticket logged, `real` and `combined` are
+`null` and the record reads exactly as it did before.
+
 ### The model scorecard (`predictions.json`)
 Every pre-match call frozen before kickoff and graded at full time: result-right rate,
 exact-score rate, over-2.5 and BTTS call rates, and a 1X2 **Brier** score. Scorer

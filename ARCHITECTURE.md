@@ -153,7 +153,10 @@ guard, why}`. Then:
 
 ### `betlog.mjs` — the bet record and the two learned dials
 Appends the card to `log.json`, settles finished legs from the box score, and computes the
-stats the Record tab shows. Two values feed back into the model:
+stats the Record tab shows. `stats()` splits them: the top level is the **paper card** (the
+model's own picks), `real` is tickets the owner placed with their own money (`real: true` on
+the parlay), `combined` is both — see MODEL.md for why the model is never graded on legs it
+did not pick. Two values feed back into the model, and they learn from paper only:
 
 - `goalsBias()` — scales goal expectation, learned from settled totals.
 - `edgeTrust()` — how much of a claimed edge on a *derived* market is believed, learned by

@@ -704,6 +704,7 @@ function renderRecordSummary() {
   const tile = (v, k, c = "") => h("div", { class: "stat" }, [h("div", { class: `sv ${c}`, text: v }), h("div", { class: "sk", text: k })]);
   for (const [c, d] of all) {
     const s = d?.stats || {};
+    const rs = s.real;
     const kids = !d ? [spinner("Settling the log…")] : d.error ? [h("div", { class: "center", text: `Couldn’t load: ${d.error}` })] : [h("div", { class: "stat-grid" }, [
       tile(String(s.legs || 0), "Settled legs"),
       tile(s.legs ? pct(s.legHitRate) : "—", "Leg hit rate"),
@@ -711,7 +712,10 @@ function renderRecordSummary() {
       tile(money(s.profit), "Profit", (s.profit ?? 0) >= 0 ? "up" : "neg"),
       tile(pct(s.roi), "ROI", (s.roi ?? 0) >= 0 ? "up" : "neg"),
       s.clv && s.clv.n ? tile(`${s.clv.avgPts >= 0 ? "+" : ""}${(s.clv.avgPts * 100).toFixed(1)}`, `CLV pts (${s.clv.n})`, s.clv.avgPts >= 0 ? "up" : "neg") : tile("n=0", "CLV · no closes yet", "muted"),
-    ])];
+    ]),
+      // the tiles are the model's paper card; real bets get their own line rather than being folded in
+      rs ? h("div", { class: "hint", text: `Paper card. Real money: ${rs.parlayWins || 0}/${rs.parlays || 0} won · $${rs.staked.toFixed(2)} staked · ${money(rs.profit)}.` }) : null,
+    ];
     wrap.appendChild(h("section", { class: `card rec-lg c-${c.code}` }, [
       h("div", { class: "card-h" }, [
         h("span", { class: "rec-lg-t" }, [h("span", { class: "lbadge", text: c.short }), h("span", { class: "card-t", text: c.name })]),
@@ -720,7 +724,7 @@ function renderRecordSummary() {
       ...kids,
     ]));
   }
-  wrap.appendChild(h("div", { class: "disc", text: "Each league keeps its own log: bets settle and closing lines are captured league by league." }));
+  wrap.appendChild(h("div", { class: "disc", text: "Each league keeps its own log: bets settle and closing lines are captured league by league. Tiles are the model's paper card — bets placed with real money are tallied separately." }));
   return wrap;
 }
 
@@ -763,10 +767,11 @@ function gameCard(mt, { withDay = false } = {}) {
 }
 
 // a ticket: head · legs · 5-cell number strip · the reasoning
-function ticket(p, { kind, game, stake, fun = false, result = null, extraNums = null }) {
-  const cls = `tkt${fun ? " fun" : ""}${result ? ` ${result}` : ""}`;
+function ticket(p, { kind, game, stake, fun = false, result = null, extraNums = null, tag = null }) {
+  const cls = `tkt${fun ? " fun" : ""}${result ? ` ${result}` : ""}${tag ? " real" : ""}`;
   const t = h("div", { class: cls });
   const headKids = [h("span", { class: "tk-kind", text: kind })];
+  if (tag) headKids.push(h("span", { class: "tk-tag", text: tag }));
   if (result) headKids.push(h("span", { class: `rec-badge ${result}`, text: result === "win" ? "WON" : result === "loss" ? "LOST" : result === "push" ? "PUSH" : "PENDING" }));
   const gm = gameChip(game);
   if (gm) headKids.push(gm);
@@ -1912,7 +1917,7 @@ function renderRecord(data) {
   const money = (v) => (v == null ? "—" : `${v >= 0 ? "+" : "−"}$${Math.abs(v).toFixed(2)}`);
   const tile = (v, k, c = "") => h("div", { class: "stat" }, [h("div", { class: `sv ${c}`, text: v }), h("div", { class: "sk", text: k })]);
   wrap.appendChild(h("div", { class: "today-head" }, [
-    h("div", {}, [h("div", { class: "eyebrow", text: "All-time · settled legs" }), h("div", { class: "vh" }, [txt("Record "), h("span", { class: "sub", text: s.legs ? `${s.legs} legs · ${s.parlayWins || 0}/${s.parlays || 0} bets won` : "nothing settled yet" })])]),
+    h("div", {}, [h("div", { class: "eyebrow", text: s.real ? "All-time · settled legs · the model's paper card only" : "All-time · settled legs" }), h("div", { class: "vh" }, [txt("Record "), h("span", { class: "sub", text: s.legs ? `${s.legs} legs · ${s.parlayWins || 0}/${s.parlays || 0} bets won` : "nothing settled yet" })])]),
     h("div", {}, [h("div", { class: "picks-sub", text: "Brier = calibration, lower is better" }), h("div", { class: "picks-sub", text: "CLV = bet price vs the pre-kickoff close" })]),
   ]));
   const tiles = [
@@ -1926,23 +1931,41 @@ function renderRecord(data) {
   else tiles.push(tile("n=0", "CLV · no closes yet", "muted"));
   wrap.appendChild(h("div", { class: "stat-grid" }, tiles));
   if (!s.legs) wrap.appendChild(h("div", { class: "hint", text: "Stats fill in as games finish and settle each morning." }));
+  // every number above is a claim about the MODEL, so it is computed over the paper card alone.
+  // Tickets the owner placed are counted in the Real money card below, never in here - their legs
+  // can be markets this app never bets (scorers), and grading the model on them would be dishonest.
+  if (s.real) wrap.appendChild(h("div", { class: "hint", text: `Paper card only — the ${s.real.parlays} bet${s.real.parlays === 1 ? "" : "s"} you placed yourself (${s.real.legs} legs) ${s.real.parlays === 1 ? "is" : "are"} kept out of these numbers and tallied under Real money. Combined, the log is ${s.combined.legs} legs and ${money(s.combined.profit)}.` }));
 
   const cards = h("div", { class: "two" });
   const left = h("div", { class: "col" }), right = h("div", { class: "col" });
   const card = (title, sub, kids) => h("section", { class: "card" }, [h("div", { class: "card-h" }, [h("span", { class: "card-t", text: title }), sub ? h("span", { class: "card-s", text: sub }) : null]), ...kids]);
   const kv = (a, b, cls = "est") => h("div", { class: "gk" }, [h("span", { text: a }), h("span", { class: cls, text: b })]);
   // bankroll trajectory
+  // Bankroll is about MONEY, not about the model: once the owner has placed a real bet this curve
+  // follows their actual stake, and the paper card's P/L stays in the tiles above. With no real
+  // money logged it is the paper curve, as it always was - the sub-line says which it is.
   {
+    const real = !!s.real;
+    const keep = (p) => p.settled && (!real || p.real);
     const asc = [...(data.days || [])].sort((a, b) => a.date.localeCompare(b.date));
     let cum = 0; const pts = [];
-    for (const d of asc) { let dp = 0, any = false; for (const p of d.parlays || []) if (p.settled) { any = true; dp += p.result === "win" ? p.payout - p.stake : p.result === "push" ? 0 : -p.stake; } if (any) { cum += dp; pts.push(cum); } }
+    for (const d of asc) { let dp = 0, any = false; for (const p of d.parlays || []) if (keep(p)) { any = true; dp += p.result === "win" ? p.payout - p.stake : p.result === "push" ? 0 : -p.stake; } if (any) { cum += dp; pts.push(cum); } }
     const graph = pts.length >= 2 ? sparkline(pts, { cls: cum >= 0 ? "pl-up" : "pl-neg", midline: 0 }) : null;
-    if (graph) left.appendChild(card("Bankroll", "cumulative P/L by slate", [h("div", { class: "probwrap" }, [graph]), h("div", { class: "winlegend" }, [h("span", { text: asc[0].date }), h("span", { class: cum >= 0 ? "up" : "neg", text: money(cum) })])]));
+    const rs = real ? s.real : null;
+    const kids = [];
+    if (rs) kids.push(h("div", { class: "stat-grid c3" }, [
+      tile(`${rs.parlayWins || 0}/${rs.parlays || 0}`, "Bets won"),
+      tile(money(rs.profit), "Profit", (rs.profit ?? 0) >= 0 ? "up" : "neg"),
+      tile(pct(rs.roi), "ROI", (rs.roi ?? 0) >= 0 ? "up" : "neg"),
+    ]));
+    if (graph) kids.push(h("div", { class: "probwrap" }, [graph]), h("div", { class: "winlegend" }, [h("span", { text: asc[0].date }), h("span", { class: cum >= 0 ? "up" : "neg", text: money(cum) })]));
+    else if (rs) kids.push(h("div", { class: "hint", text: `$${rs.staked.toFixed(2)} staked across ${rs.parlays} settled bet${rs.parlays === 1 ? "" : "s"}. The curve draws once a second slate settles.` }));
+    if (kids.length) left.appendChild(card(rs ? "Real money" : "Bankroll", rs ? "bets you placed yourself · cumulative P/L" : "cumulative P/L by slate", kids));
   }
   const rc = data.recent;
   if (rc && rc.legs) {
     const range = rc.from && rc.to && rc.from !== rc.to ? `${rc.from} → ${rc.to}` : rc.to || "";
-    left.appendChild(card(`Recent · ${rc.windowDays} day${rc.windowDays > 1 ? "s" : ""}`, range, [h("div", { class: "stat-grid c3" }, [
+    left.appendChild(card(`Recent · ${rc.windowDays} day${rc.windowDays > 1 ? "s" : ""}`, `${range}${s.real ? " · paper card" : ""}`, [h("div", { class: "stat-grid c3" }, [
       tile(`${pct(rc.legHitRate)}`, `Hit rate (${rc.legs})`), tile(rc.brier == null ? "—" : rc.brier.toFixed(3), "Brier"), tile(money(rc.profit), "Profit", (rc.profit ?? 0) >= 0 ? "up" : "neg"),
     ])]));
   }
@@ -1951,7 +1974,7 @@ function renderRecord(data) {
     const kids = [h("div", { class: "stat-grid c3" }, [tile(pct(f.hitRate), `Fade hit rate (${f.legs})`, f.hitRate > 0.5 ? "up" : ""), tile(money(f.profit), "Est. profit", (f.profit ?? 0) >= 0 ? "up" : "neg"), tile(pct(f.roi), "Est. ROI", (f.roi ?? 0) >= 0 ? "up" : "neg")])];
     for (const b of f.byMarket || []) kids.push(kv(b.market, `fade hits ${pct(b.hitRate)} (n=${b.n})`));
     kids.push(h("div", { class: "hint", text: "Fade wins when the model's pick loses. $ est. = flat $10 on two-way markets, price inverted across the vig; Moneyline is 3-way so it counts toward hit rate only." }));
-    right.appendChild(card("Shadow fade", "betting the opposite of every leg", kids));
+    right.appendChild(card("Shadow fade", `betting the opposite of every ${s.real ? "paper " : ""}leg`, kids));
   }
   if (s.calibration && s.calibration.length) right.appendChild(card("Calibration", "model % vs actual", s.calibration.map((b) => kv(b.bucket, `pred ${pct(b.predicted)} → hit ${pct(b.actual)} (n=${b.n})`))));
   const pa = data.projAccuracy;
@@ -2027,6 +2050,9 @@ function historyTicket(p) {
   const num = (v, l, c = "") => h("div", { class: "tk-num" }, [h("div", { class: `tk-num-v ${c}`, text: v }), h("div", { class: "tk-num-l", text: l })]);
   return ticket({ ...p, ev: 0, kelly: 0 }, {
     kind: p.type === "cross" ? "longshot · cross-game" : `${p.legs.length === 1 ? "single" : `${p.legs.length}-leg parlay`}`,
+    // a ticket the owner actually placed is the one thing in this view that cost money - say so on
+    // the ticket itself, because its legs can be markets the model never picked
+    tag: p.real ? "REAL MONEY" : null,
     game: p.type === "cross" ? "All games" : p.game, stake: p.stake, result,
     extraNums: [
       num(fmtAm(p.americanOdds), "odds"),
