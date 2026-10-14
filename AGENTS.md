@@ -169,7 +169,11 @@ Known gaps, roughly in priority order:
 3. **Evening preview — half done.** The **Builder** now looks ahead (`builderSlate()` in
    `parlays.mjs`: today's betting day while it still has a kickoff to come, else the next day
    that has one), so tomorrow's board is buildable the evening before, and `parlayMenu` returns
-   `preview: true` for the renderer to label it. The **card** still prices only the current
+   `preview: true` for the renderer to label it. Looking ahead is opt-in and ONLY
+   `api/_live.mjs` asks for it (`parlayMenu(null, { lookAhead: true })`): the publisher's keyed
+   step builds the board from the card's own fetches, so letting it look ahead would spend
+   rationed OddsPapi calls on tomorrow and publish it labelled "priced with the 10:00 card".
+   The **card** still prices only the current
    betting day, on purpose — it freezes predictions into the training set, and freezing a
    call a night early freezes it against a line with a night of movement left. Previewing the
    card means deciding what to do about that freeze first.

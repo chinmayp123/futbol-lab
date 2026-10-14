@@ -60,7 +60,7 @@ export async function GET(request) {
     // from the same code: FanDuel and Action Network prices, no Odds API or OddsPapi spend.
     try {
       await records();
-      const menu = await parlayMenu();
+      const menu = await parlayMenu(null, { lookAhead: true });
       return Response.json({ ...menu, at: Date.now() }, {
         headers: { ...cors, "Cache-Control": "public, max-age=0, s-maxage=300, stale-while-revalidate=600" },
       });

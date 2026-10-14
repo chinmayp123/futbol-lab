@@ -433,11 +433,14 @@ export async function generateDailyParlays(stake = 10, events = null) {
 // `state`: a postponed or simply stale row sits at "pre" with a kickoff hours in the past, and
 // trusting it is what had the builder quoting pre-match prices on games already in play.
 //
-// Only the builder looks ahead. generateDailyParlays keeps the strict current-day rule, because the
-// card freezes predictions into the training set and a card for a day that hasn't started would
-// freeze calls against lines that still have a night of movement left in them.
+// Looking ahead is OPT-IN (`lookAhead`), and only the keyless live function asks for it. The card
+// keeps the strict current-day rule, because it freezes predictions into the training set and a call
+// frozen a night early is frozen against a line with a night of movement left in it. The publisher's
+// keyed step publishes the board from the same fetches as the card, so it must not look ahead either:
+// an erratic cron can fire it late in the evening, and it would then spend rationed OddsPapi calls on
+// tomorrow's board and publish it under the label "priced with the 10:00 card".
 const stillToPlay = (e) => e.competitions[0].status.type.state === "pre" && Date.parse(e.date) > Date.now();
-export async function builderSlate() {   // exported so the day choice can be checked without pricing a board
+export async function builderSlate({ lookAhead = false } = {}) {   // exported so the day choice can be checked without pricing a board
   const today = bettingDay(Date.now());
   // three boards: today, tomorrow, and the day after — so tomorrow's post-midnight kickoffs (which
   // belong to tomorrow's betting day) are in the pool when tomorrow is the day we settle on
@@ -452,8 +455,8 @@ export async function builderSlate() {   // exported so the day choice can be ch
     if (!byDay.has(day)) byDay.set(day, []);
     byDay.get(day).push(e);
   }
-  const day = byDay.has(today) ? today : [...byDay.keys()].sort()[0];
-  return { slate: day ?? today, pool: byDay.get(day) || [], preview: !!day && day !== today };
+  const day = byDay.has(today) ? today : lookAhead ? [...byDay.keys()].sort()[0] : null;
+  return { slate: day ?? today, pool: (day && byDay.get(day)) || [], preview: !!day && day !== today };
 }
 
 // Parlay BUILDER feed: every upcoming game with its full set of priced candidate legs (all
@@ -462,13 +465,13 @@ export async function builderSlate() {   // exported so the day choice can be ch
 // in-band/bettable legs — the whole point is to let the user pick any leg, even ones the model
 // dislikes, and see what it thinks. Reuses matchLegs (same goal-expectation calibration) so the
 // numbers line up exactly with the tracked card.
-export async function parlayMenu(events = null) {
+export async function parlayMenu(events = null, { lookAhead = false } = {}) {
   let slate, pool, preview = false;
   if (events) {
     slate = bettingDay(Date.now());
     pool = events;
   } else {
-    ({ slate, pool, preview } = await builderSlate());
+    ({ slate, pool, preview } = await builderSlate({ lookAhead }));
   }
   const upcoming = events ? pool.filter((e) => e.competitions[0].status.type.state === "pre") : pool;
   const cal = await import("./betlog.mjs")
