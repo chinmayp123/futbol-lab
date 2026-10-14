@@ -166,8 +166,13 @@ Known gaps, roughly in priority order:
 2. **Team pages.** Click a crest, see that club's recent games with scores, xG and
    opponents, plus head-to-head with the next opponent. Data path already exists
    (`fotmob.recentMatches`).
-3. **Evening preview.** The card and Builder only price games on the current betting day,
-   so both go quiet once the day's games kick off. Price tomorrow's slate once lines post.
+3. **Evening preview — half done.** The **Builder** now looks ahead (`builderSlate()` in
+   `parlays.mjs`: today's betting day while it still has a kickoff to come, else the next day
+   that has one), so tomorrow's board is buildable the evening before, and `parlayMenu` returns
+   `preview: true` for the renderer to label it. The **card** still prices only the current
+   betting day, on purpose — it freezes predictions into the training set, and freezing a
+   call a night early freezes it against a line with a night of movement left. Previewing the
+   card means deciding what to do about that freeze first.
 4. **Live scorecard grading.** Grade a prediction the moment it's mathematically decided
    rather than waiting for full time.
 5. **Signed installers**, if the app is ever handed to people who shouldn't see a

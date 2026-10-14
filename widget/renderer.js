@@ -1727,7 +1727,7 @@ function renderBuilder(data, code) {
   if (!data) { wrap.appendChild(h("div", { class: "board-col" }, [spinner("Pricing the slate…")])); return wrap; }
   if (data.error) { wrap.appendChild(h("div", { class: "board-col" }, [h("div", { class: "center", text: `Couldn’t load: ${data.error}` })])); return wrap; }
   const games = data.games || [];
-  if (!games.length) { wrap.appendChild(h("div", { class: "board-col" }, [emptyState("Nothing left to price on this slate.", "The builder prices games that haven't kicked off yet — the next slate opens in the morning.")])); return wrap; }
+  if (!games.length) { wrap.appendChild(h("div", { class: "board-col" }, [emptyState("No games left to price.", "The builder prices every game that hasn't kicked off yet — today's, or the next day that has fixtures. Neither has one in range.")])); return wrap; }
   // drop stale selections (legs no longer on the refreshed menu) so the grade stays honest
   const liveKeys = new Set();
   for (const g of games) for (const l of g.legs) liveKeys.add(slipKey(l));
@@ -1753,10 +1753,11 @@ function renderBuilder(data, code) {
   if (data.trust != null) facts.push(fact("Edge trust", Number(data.trust).toFixed(2)));
   setThird([
     h("span", { class: "matchup" }, [crestFor(hAb, "sm"), txt(hAb), h("span", { class: "vs", text: "v" }), txt(aAb), crestFor(aAb, "sm")]),
-    h("span", { class: "kick", text: mt ? `${fmtDay(mt.date)} ${fmtTime(mt.date)}` : data.date }),
+    h("span", { class: "kick", text: `${mt ? `${fmtDay(mt.date)} ${fmtTime(mt.date)}` : game.date ? `${fmtDay(game.date)} ${fmtTime(game.date)}` : data.date}${data.preview ? " · tomorrow's board" : ""}` }),
     h("div", { class: "facts" }, facts),
   ], hc);
   setTicker([
+    data.preview ? { text: "Tomorrow's board, priced tonight · lines move overnight · these are not the prices at kickoff", cls: "warn" } : null,
     { text: "Derived markets ran 15pts overconfident last tournament · edges shrunk by learned trust", cls: "warn" },
     { text: "Two-axis guard: one result leg + one goals leg per game, never two from one axis" },
     { text: "Corners benched from the card · scorers display only", cls: "warn" },
@@ -1874,6 +1875,7 @@ function renderBuilder(data, code) {
     if (derived.length && data.trust != null) warns.push(`${derived.length} derived-market leg${derived.length === 1 ? "" : "s"}: model claims shrunk to ${Math.round(data.trust * 100)}% trust.`);
     if (selected.some((l) => l.fair)) warns.push("A fair-priced scorer has no book line: the slip can't be placed as shown.");
     if (selected.some((l) => l.fadePublic)) warns.push("A leg is on a side sharper money is fading.");
+    if (data.preview) warns.push("Priced the night before. Overnight moves — team news, money arriving — will shift these prices, so the edge shown is not the edge you would be betting into.");
     warns.push("CLV unknown until kickoff — a good bet is one that beats the close.");
     rail.appendChild(h("div", { class: "warnings" }, [h("div", { class: "wh", text: "Read before tracking" }), ...warns.map((w) => h("div", { class: "warn-line", text: w }))]));
     if (builderMsg) rail.appendChild(h("div", { class: `bld-msg ${builderMsg.ok ? "up" : "neg"}`, text: builderMsg.text }));
@@ -1883,9 +1885,9 @@ function renderBuilder(data, code) {
   rail.appendChild(h("div", { class: "actions" }, [trackBtn, h("button", { class: "clear", text: "Clear", onclick: () => { builderSel.clear(); builderMsg = null; render(); } })]));
   // a board priced on demand has no odds keys, so it carries fewer markets (no line-shop, no
   // Draw-no-bet / handicap / team totals) and its edges can differ from the card's — say so
-  rail.appendChild(h("div", { class: "rail-src", text: data.source === "live"
-    ? `${data.date} · priced just now · FanDuel + Action Network only, no line-shop · xG FotMob`
-    : `${data.date} · priced with the 10:00 card · FanDuel · OddsPapi · xG FotMob` }));
+  rail.appendChild(h("div", { class: "rail-src", text: `${data.date}${data.preview ? " (tomorrow)" : ""} · ${data.source === "live"
+    ? "priced just now · FanDuel + Action Network only, no line-shop · xG FotMob"
+    : "priced with the 10:00 card · FanDuel · OddsPapi · xG FotMob"}` }));
   wrap.appendChild(rail);
   return wrap;
 }

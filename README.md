@@ -146,6 +146,13 @@ The board comes from the 10:00 card when that is today's, and is otherwise **pri
 (keylessly, in about 12 seconds) by the live function, so it is never empty just because the
 publisher's cron did not run.
 
+It also **looks ahead**: while today still has a game that hasn't kicked off the board is today's,
+and once the day is spent it prices the next day that has fixtures — so tomorrow's slate is
+buildable the evening before instead of appearing at 6am. An early board says so in its ticker, its
+kickoff line and the slip's warnings, because overnight moves mean the edge shown is not the edge at
+kickoff. Tonight's **card** is deliberately not previewed: it freezes predictions into the training
+set, and a call frozen a night early is frozen against a line with a night of movement left.
+
 ### Table
 The 36-club league phase as one ordered list: a coloured rank gutter, a labelled cut row at
 each zone change (top 8 straight to the round of 16, 9–24 to the play-off, 25–36 out),

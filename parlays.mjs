@@ -425,6 +425,37 @@ export async function generateDailyParlays(stake = 10, events = null) {
   return { date: events ? bettingDay(events?.[0]?.date || Date.now()) : slate, stake, singles, longshot, notes };
 }
 
+// EVENING PREVIEW: which betting day the builder should price. Today's, while today still has a
+// game that hasn't kicked off; otherwise the earliest later day that does. Before this, the board
+// went dark the moment the last game of the day kicked off and stayed dark until the betting day
+// rolled at 6am local — on a Champions League night that is the whole evening, exactly when someone
+// is looking for tomorrow's slate. "Still to play" is decided by KICKOFF TIME, not by the event's
+// `state`: a postponed or simply stale row sits at "pre" with a kickoff hours in the past, and
+// trusting it is what had the builder quoting pre-match prices on games already in play.
+//
+// Only the builder looks ahead. generateDailyParlays keeps the strict current-day rule, because the
+// card freezes predictions into the training set and a card for a day that hasn't started would
+// freeze calls against lines that still have a night of movement left in them.
+const stillToPlay = (e) => e.competitions[0].status.type.state === "pre" && Date.parse(e.date) > Date.now();
+export async function builderSlate() {   // exported so the day choice can be checked without pricing a board
+  const today = bettingDay(Date.now());
+  // three boards: today, tomorrow, and the day after — so tomorrow's post-midnight kickoffs (which
+  // belong to tomorrow's betting day) are in the pool when tomorrow is the day we settle on
+  const boards = await Promise.all([0, 1, 2].map((n) => scoreboardOn(ymd(n)).catch(() => ({ events: [] }))));
+  const seen = new Set();
+  const byDay = new Map();
+  for (const b of boards) for (const e of b.events || []) {
+    if (seen.has(e.id)) continue;
+    seen.add(e.id);
+    if (!stillToPlay(e)) continue;
+    const day = bettingDay(e.date);
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day).push(e);
+  }
+  const day = byDay.has(today) ? today : [...byDay.keys()].sort()[0];
+  return { slate: day ?? today, pool: byDay.get(day) || [], preview: !!day && day !== today };
+}
+
 // Parlay BUILDER feed: every upcoming game with its full set of priced candidate legs (all
 // markets, the model's prob vs the real FanDuel price), so the widget can let the user assemble
 // any parlay and see the model's grade. Unlike generateDailyParlays this does NOT filter to
@@ -432,24 +463,14 @@ export async function generateDailyParlays(stake = 10, events = null) {
 // dislikes, and see what it thinks. Reuses matchLegs (same goal-expectation calibration) so the
 // numbers line up exactly with the tracked card.
 export async function parlayMenu(events = null) {
-  const slate = bettingDay(Date.now());
-  let pool;
+  let slate, pool, preview = false;
   if (events) {
+    slate = bettingDay(Date.now());
     pool = events;
   } else {
-    const boards = await Promise.all([
-      scoreboardOn(ymd(0)).catch(() => ({ events: [] })),
-      scoreboardOn(ymd(1)).catch(() => ({ events: [] })),
-    ]);
-    const seen = new Set();
-    pool = [];
-    for (const b of boards) for (const e of b.events || []) {
-      if (seen.has(e.id) || bettingDay(e.date) !== slate) continue;
-      seen.add(e.id);
-      pool.push(e);
-    }
+    ({ slate, pool, preview } = await builderSlate());
   }
-  const upcoming = pool.filter((e) => e.competitions[0].status.type.state === "pre");
+  const upcoming = events ? pool.filter((e) => e.competitions[0].status.type.state === "pre") : pool;
   const cal = await import("./betlog.mjs")
     .then((b) => ({ goalsBias: b.goalsBias().factor, trust: b.edgeTrust().trust }))
     .catch(() => ({ goalsBias: 1, trust: 0.5 }));
@@ -471,7 +492,7 @@ export async function parlayMenu(events = null) {
   }
   // the calibrations ride along so the builder's lower third can show what shrinks the claims, and
   // the edge band so the builder's "suggest a slip" uses the card's own rule instead of its own copy
-  return { date: slate, games, goalsBias: cal.goalsBias, trust: cal.trust, band: [EDGE_MIN, EDGE_MAX] };
+  return { date: slate, preview, games, goalsBias: cal.goalsBias, trust: cal.trust, band: [EDGE_MIN, EDGE_MAX] };
 }
 
 // grade an arbitrary set of builder-selected legs the same way buildParlay does (independence
